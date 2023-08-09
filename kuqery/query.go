@@ -1,13 +1,11 @@
 package kuery
 
-type T any
-
 // Where function filter elements based on conditions.
 // Where return a new slice.
 //
 //	 Example:
 //		evens := Filter(list, func(i int) bool {return i % 2 == 0})
-func Where(list []T, f func(T) bool) []T {
+func Where[T any](list []T, f func(T) bool) []T {
 	var newList []T
 	for _, v := range list {
 		if f(v) {
@@ -22,7 +20,7 @@ func Where(list []T, f func(T) bool) []T {
 //
 //	 Example:
 //		item := Find(list, func(n name) bool {return n == "ABC"})
-func Find(list []T, f func(T) bool) T {
+func Find[T any](list []T, f func(T) bool) T {
 	var newValue T
 	for _, v := range list {
 		if f(v) {
@@ -55,7 +53,7 @@ func Distinct[Y string | int32 | int64 | float32 | float64](list []Y) []Y {
 //
 //	 Example:
 //		x, a := Pop(items)
-func Pop(list []T) (T, []T) {
+func Pop[T any](list []T) (T, []T) {
 	return list[len(list)-1], list[:len(list)-1]
 }
 
@@ -64,7 +62,7 @@ func Pop(list []T) (T, []T) {
 //
 //	 Example:
 //		x, a := Shift(items)
-func Shift(list []T) (T, []T) {
+func Shift[T any](list []T) (T, []T) {
 	return list[0], list[1:]
 }
 
@@ -72,8 +70,8 @@ func Shift(list []T) (T, []T) {
 // Unshift returns new slice.
 //
 //	 Example:
-//		x, a := Unshift(items)
-func Unshift(list []T, x T) []T {
+//		items := Unshift(items, a)
+func Unshift[T any](list []T, x T) []T {
 	list = append([]T{x}, list...)
 	return list
 }
@@ -83,7 +81,7 @@ func Unshift(list []T, x T) []T {
 //
 //	 Example:
 //		a := RemoveAt(items, 1)
-func RemoveAt(list []T, i int) []T {
+func RemoveAt[T any](list []T, i int) []T {
 	list[i] = list[len(list)-1]
 	return list[:len(list)-1]
 }
@@ -93,7 +91,7 @@ func RemoveAt(list []T, i int) []T {
 //
 //	 Example:
 //		index := IndexOf(list, func(n name) bool {return n == "ABC"})
-func IndexOf(list []T, f func(T) bool) int {
+func IndexOf[T any](list []T, f func(T) bool) int {
 	index := -1
 	for i, v := range list {
 		if f(v) {
