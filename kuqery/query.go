@@ -1,5 +1,16 @@
 package kuery
 
+
+// NOTE:
+//	This package is inspired by Linq in C#.
+//	Reference:
+//		- github.com/ahmetb/go-linq
+
+
+
+
+
+
 // Where function filter elements based on conditions.
 // Where return a new slice.
 //
