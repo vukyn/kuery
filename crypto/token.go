@@ -1,4 +1,4 @@
-package krypto
+package crypto
 
 import (
 	"github.com/google/uuid"

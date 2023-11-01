@@ -1,4 +1,4 @@
-package kmath
+package math
 
 func Abs[T int | int32 | int64 | float32 | float64](x T) T {
 	if x < 0 {

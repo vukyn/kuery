@@ -1,15 +1,9 @@
-package kuery
-
+package query
 
 // NOTE:
 //	This package is inspired by Linq in C#.
 //	Reference:
 //		- github.com/ahmetb/go-linq
-
-
-
-
-
 
 // Where function filter elements based on conditions.
 // Where return a new slice.
@@ -47,7 +41,7 @@ func Find[T any](list []T, f func(T) bool) T {
 //
 //	 Example:
 //		newList := Distinct(oldList)
-func Distinct[Y string | int32 | int64 | float32 | float64](list []Y) []Y {
+func Distinct[Y string | int | int32 | int64 | uint32 | uint64 | float32 | float64](list []Y) []Y {
 	allKeys := make(map[Y]bool)
 	newList := []Y{}
 	for _, item := range list {

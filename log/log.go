@@ -1,4 +1,4 @@
-package kog
+package log
 
 import "encoding/json"
 
