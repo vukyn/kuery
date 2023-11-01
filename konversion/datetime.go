@@ -16,9 +16,9 @@ const (
 	UNIX_MILLI                   = 1000000000000
 )
 
-func FormatUnixToString(d int64, format DateTime) interface{} {
+func FormatUnixToString(d int64, format DateTime) string {
 	if d == 0 {
-		return nil
+		return ""
 	}
 	if d <= UNIX_MILLI {
 		d *= 1000
