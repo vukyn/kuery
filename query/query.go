@@ -1,6 +1,6 @@
 package query
 
-import "github.com/vukyn/go-kuery/conversion"
+import "github.com/vukyn/kuery/conversion"
 
 // NOTE:
 //	This package is inspired by Linq in C#.

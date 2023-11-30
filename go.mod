@@ -1,4 +1,4 @@
-module github.com/vukyn/go-kuery
+module github.com/vukyn/kuery
 
 go 1.20
 
