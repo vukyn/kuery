@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-
-	"github.com/vukyn/go-kuery/query"
 )
 
 func ToJsonString(src interface{}) (string, error) {
@@ -67,8 +65,4 @@ func StringToArrayString(str, delim string, trim bool) []string {
 		}
 	}
 	return result
-}
-
-func DistinctStr(str string, delim string) string {
-	return ArrayStringToString(query.Distinct(StringToArrayString(str, ",", false)), ",")
 }

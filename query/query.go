@@ -1,5 +1,7 @@
 package query
 
+import "github.com/vukyn/go-kuery/conversion"
+
 // NOTE:
 //	This package is inspired by Linq in C#.
 //	Reference:
@@ -51,6 +53,11 @@ func Distinct[Y string | int | int32 | int64 | uint32 | uint64 | float32 | float
 		}
 	}
 	return newList
+}
+
+// Distinct string remove duplicates from string (with delimiter).
+func DistinctStr(str string, delim string) string {
+	return conversion.ArrayStringToString(Distinct(conversion.StringToArrayString(str, ",", false)), ",")
 }
 
 // Pop removes the last element.
@@ -105,4 +112,17 @@ func IndexOf[T any](list []T, f func(T) bool) int {
 		}
 	}
 	return index
+}
+
+// Map creates a new array populated with the results of
+// calling a provided function on every element in the array.
+//
+//	 Example:
+//		newList := Map([]int{1,2,3}, func(n int) int {return n*2})
+func Map[T any, U any](list []T, f func(T) U) []U {
+	newList := []U{}
+	for _, v := range list {
+		newList = append(newList, f(v))
+	}
+	return newList
 }
