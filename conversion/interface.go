@@ -4,7 +4,7 @@ import (
 	"reflect"
 )
 
-// Get value from interface. Return default value if key not exists
+// Get value from interface. Return default value if key not exists or empty value.
 func ReadInterface(src map[string]interface{}, key string, defaultValue interface{}) interface{} {
 	value, ok := src[key]
 	if !ok {
@@ -13,7 +13,7 @@ func ReadInterface(src map[string]interface{}, key string, defaultValue interfac
 	return value
 }
 
-// DoubleSlice helps deal with variadic functions in Go.
+// Deal with variadic functions in Go.
 func DoubleSlice(s interface{}) []interface{} {
 	v := reflect.ValueOf(s)
 	items := make([]interface{}, v.Len())
@@ -21,4 +21,10 @@ func DoubleSlice(s interface{}) []interface{} {
 		items[i] = v.Index(i).Interface()
 	}
 	return items
+}
+
+// Detect whether a value is the zero value for its type.
+func IsZero(p interface{}) bool {
+	v := reflect.ValueOf(p)
+	return !v.IsValid() || reflect.DeepEqual(v.Interface(), reflect.Zero(v.Type()).Interface())
 }

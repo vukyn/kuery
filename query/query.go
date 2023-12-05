@@ -126,3 +126,21 @@ func Map[T any, U any](list []T, f func(T) U) []U {
 	}
 	return newList
 }
+
+// Slice create new slice from map with condition (optional)
+//
+//	 Example:
+//		newList := Slice(map[int32]string{1:"1",2:"2"}, func(n string) bool {return true})
+func Slice[T string | int32 | int64 | float32 | float64, U any](mapper map[T]U, f ...func(U) bool) []U {
+	newList := []U{}
+	for _, v := range mapper {
+		if f != nil {
+			if f[0](v) {
+				newList = append(newList, v)
+			}
+		} else {
+			newList = append(newList, v)
+		}
+	}
+	return newList
+}
