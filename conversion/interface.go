@@ -7,7 +7,7 @@ import (
 // Get value from interface. Return default value if key not exists or empty value.
 func ReadInterface(src map[string]interface{}, key string, defaultValue interface{}) interface{} {
 	value, ok := src[key]
-	if !ok {
+	if !ok || IsZero(value) {
 		return defaultValue
 	}
 	return value
