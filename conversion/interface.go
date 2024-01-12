@@ -14,7 +14,7 @@ func ReadInterface(src map[string]interface{}, key string, defaultValue interfac
 }
 
 // Get value from interface. Return default value if key not exists or empty value (optional).
-func GetFromInterfaceV2[T any](src map[string]interface{}, key string, defaultValue T, isZero ...bool) T {
+func ReadInterfaceV2[T any](src map[string]interface{}, key string, defaultValue T, isZero ...bool) T {
 	value, exists := src[key]
 	if !exists || (IsZero(value) && len(isZero) > 0 && isZero[0]) {
 		return defaultValue
