@@ -66,3 +66,7 @@ func StringToArrayString(str, delim string, trim bool) []string {
 	}
 	return result
 }
+
+func ToPointer[T any](i T) *T {
+	return &i
+}
