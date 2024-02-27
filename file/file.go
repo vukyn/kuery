@@ -142,11 +142,7 @@ func IsHidden(path string) (bool, error) {
 			return false, err
 		}
 
-		// Appending `\\?\` to the absolute path helps with
-		// preventing 'Path Not Specified Error' when accessing
-		// long paths and filenames
-		// https://docs.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=cmd
-		pointer, err := syscall.UTF16PtrFromString("\\?\\" + absPath)
+		pointer, err := syscall.UTF16PtrFromString(absPath)
 		if err != nil {
 			return false, err
 		}
