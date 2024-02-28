@@ -64,6 +64,10 @@ func Warnf(msg string, args ...interface{}) {
 	fmt.Println()
 }
 
+func Color(msg, color string) {
+	fmt.Println(style(msg, color))
+}
+
 func style(msg, color string) string {
 	return fmt.Sprintf("%s%s%s", color, msg, COLOR_OFF)
 }
