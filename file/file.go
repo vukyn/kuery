@@ -1,6 +1,7 @@
 package file
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -154,6 +155,22 @@ func IsHidden(path string) (bool, error) {
 	default:
 		return path[0] == dot_character, nil
 	}
+}
+
+// GetAbsDir returns the absolute path of a directory
+func GetAbsDir(dirpath string) (string, error) {
+	f, err := os.Stat(dirpath)
+	if err != nil {
+		return "", err
+	}
+	if !f.IsDir() {
+		return "", fmt.Errorf("not a directory")
+	}
+	abs, err := filepath.Abs(dirpath)
+	if err != nil {
+		return "", err
+	}
+	return abs, nil
 }
 
 // // ZipSingleFile zip the sourceFile path to outputFile path
