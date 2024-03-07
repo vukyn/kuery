@@ -64,8 +64,8 @@ func Warnf(msg string, args ...interface{}) {
 	fmt.Println()
 }
 
-func Color(msg, color string) {
-	fmt.Println(style(msg, color))
+func Color(msg, color string) string {
+	return style(msg, color)
 }
 
 func style(msg, color string) string {
