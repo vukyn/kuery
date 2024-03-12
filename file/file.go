@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
-	"syscall"
 )
 
 // CreateFilePath creates a file path if not exist.
