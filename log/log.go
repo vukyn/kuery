@@ -3,6 +3,7 @@ package log
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // Print with formatted
@@ -26,7 +27,7 @@ func DisablePrettyLog() {
 
 func Infof(msg string, args ...interface{}) {
 	if pretty {
-		fmt.Printf("%s ", style("INFO", BLUE))
+		fmt.Printf("%s ", Color("INFO", BLUE))
 	} else {
 		fmt.Print("[INFO]: ")
 	}
@@ -36,7 +37,7 @@ func Infof(msg string, args ...interface{}) {
 
 func Errorf(msg string, args ...interface{}) {
 	if pretty {
-		fmt.Printf("%s ", style("ERROR", RED))
+		fmt.Printf("%s ", Color("ERROR", RED))
 	} else {
 		fmt.Print("[ERROR]: ")
 	}
@@ -46,7 +47,7 @@ func Errorf(msg string, args ...interface{}) {
 
 func Debugf(msg string, args ...interface{}) {
 	if pretty {
-		fmt.Printf("%s ", style("DEBUG", PURPLE))
+		fmt.Printf("%s ", Color("DEBUG", PURPLE))
 	} else {
 		fmt.Print("[DEBUG]: ")
 	}
@@ -56,7 +57,7 @@ func Debugf(msg string, args ...interface{}) {
 
 func Warnf(msg string, args ...interface{}) {
 	if pretty {
-		fmt.Printf("%s ", style("WARN", YELLOW))
+		fmt.Printf("%s ", Color("WARN", YELLOW))
 	} else {
 		fmt.Print("[WARN]: ")
 	}
@@ -64,10 +65,40 @@ func Warnf(msg string, args ...interface{}) {
 	fmt.Println()
 }
 
-func Color(msg, color string) string {
-	return style(msg, color)
+type Property struct {
+	Foreground *RGB
+	Background *RGB
+	Italic     bool
+	Bold       bool
+	Underline  bool
 }
 
-func style(msg, color string) string {
+type RGB struct {
+	R, G, B int
+}
+
+// Simple color
+func Color(msg, color string) string {
 	return fmt.Sprintf("%s%s%s", color, msg, COLOR_OFF)
+}
+
+// Advanced color
+func ColorA(msg string, prop Property) string {
+	style := make([]string, 0)
+	if prop.Bold {
+		style = append(style, "1")
+	}
+	if prop.Italic {
+		style = append(style, "3")
+	}
+	if prop.Underline {
+		style = append(style, "4")
+	}
+	if prop.Foreground != nil {
+		style = append(style, fmt.Sprintf("38;2;%d;%d;%d", prop.Foreground.R, prop.Foreground.G, prop.Foreground.B))
+	}
+	if prop.Background != nil {
+		style = append(style, fmt.Sprintf("48;2;%d;%d;%d", prop.Background.R, prop.Background.G, prop.Background.B))
+	}
+	return fmt.Sprintf("\033[%sm%s%s", strings.Join(style, ";"), msg, COLOR_OFF)
 }
