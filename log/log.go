@@ -1,104 +1,102 @@
 package log
 
 import (
-	"encoding/json"
 	"fmt"
-	"strings"
+	"os"
+	"path/filepath"
+	"strconv"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
-// Print with formatted
-func PrettyPrint(v interface{}) string {
-	res, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return err.Error()
-	}
-	return string(res)
+const (
+	LOG_MODE_PRETTY = "pretty"
+	LOG_MODE_JSON   = "json"
+
+	LOG_LEVEL_DEBUG    = "debug"
+	LOG_LEVEL_INFO     = "info"
+	LOG_LEVEL_WARN     = "warn"
+	LOG_LEVEL_ERROR    = "error"
+	LOG_LEVEL_FATAL    = "fatal"
+	LOG_LEVEL_PANIC    = "panic"
+	LOG_LEVEL_DISABLED = "disabled"
+)
+
+type Config struct {
+	Mode  string // pretty, json
+	Level string // debug, info, warn, error, fatal, panic, disabled
 }
 
-var pretty = false
+func Init(cfg Config) error {
+	zerolog.CallerMarshalFunc = formatCaller
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	log.Logger = log.With().Caller().Logger()
 
-func SetPrettyLog() {
-	pretty = true
+	switch cfg.Mode {
+	case LOG_MODE_PRETTY:
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	case LOG_MODE_JSON:
+		log.Logger = log.Output(os.Stderr)
+	default:
+		return fmt.Errorf("invalid log mode: %s", cfg.Mode)
+	}
+
+	switch cfg.Level {
+	case LOG_LEVEL_DEBUG:
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	case LOG_LEVEL_INFO:
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	case LOG_LEVEL_WARN:
+		zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	case LOG_LEVEL_ERROR:
+		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	case LOG_LEVEL_FATAL:
+		zerolog.SetGlobalLevel(zerolog.FatalLevel)
+	case LOG_LEVEL_PANIC:
+		zerolog.SetGlobalLevel(zerolog.PanicLevel)
+	case LOG_LEVEL_DISABLED:
+		zerolog.SetGlobalLevel(zerolog.Disabled)
+	default:
+		return fmt.Errorf("invalid log level: %s", cfg.Level)
+	}
+
+	return nil
 }
 
-func DisablePrettyLog() {
-	pretty = false
+func Disable() {
+	log.Logger = log.Output(zerolog.Nop())
 }
 
-func Infof(msg string, args ...interface{}) {
-	if pretty {
-		fmt.Printf("%s ", Color("INFO", BLUE))
-	} else {
-		fmt.Print("[INFO]: ")
-	}
-	fmt.Printf(msg, args...)
-	fmt.Println()
+type Logger struct {
+	zerolog.Logger
 }
 
-func Errorf(msg string, args ...interface{}) {
-	if pretty {
-		fmt.Printf("%s ", Color("ERROR", RED))
-	} else {
-		fmt.Print("[ERROR]: ")
-	}
-	fmt.Printf(msg, args...)
-	fmt.Println()
+func New(pkg, funcName string) *Logger {
+	log := log.Logger.With().Str("pkg", pkg).Str("func", funcName).Logger()
+	return &Logger{log}
 }
 
-func Debugf(msg string, args ...interface{}) {
-	if pretty {
-		fmt.Printf("%s ", Color("DEBUG", PURPLE))
-	} else {
-		fmt.Print("[DEBUG]: ")
-	}
-	fmt.Printf(msg, args...)
-	fmt.Println()
+func (l *Logger) Info(msg string, args ...any) {
+	l.Logger.Info().Msgf(msg, args...)
 }
 
-func Warnf(msg string, args ...interface{}) {
-	if pretty {
-		fmt.Printf("%s ", Color("WARN", YELLOW))
-	} else {
-		fmt.Print("[WARN]: ")
-	}
-	fmt.Printf(msg, args...)
-	fmt.Println()
+func (l *Logger) Error(msg string, err error) {
+	l.Logger.Error().Stack().Err(err).Msg(msg) // need to print stack trace
 }
 
-type Property struct {
-	Foreground *RGB
-	Background *RGB
-	Italic     bool
-	Bold       bool
-	Underline  bool
+func (l *Logger) Debug(msg string, args ...any) {
+	l.Logger.Debug().Msgf(msg, args...)
 }
 
-type RGB struct {
-	R, G, B int
+func (l *Logger) Fatal(msg string, args ...any) {
+	l.Logger.Fatal().Msgf(msg, args...)
 }
 
-// Simple color
-func Color(msg, color string) string {
-	return fmt.Sprintf("%s%s%s", color, msg, COLOR_OFF)
+func (l *Logger) Panic(msg string, args ...any) {
+	l.Logger.Panic().Msgf(msg, args...)
 }
 
-// Advanced color
-func ColorA(msg string, prop Property) string {
-	style := make([]string, 0)
-	if prop.Bold {
-		style = append(style, "1")
-	}
-	if prop.Italic {
-		style = append(style, "3")
-	}
-	if prop.Underline {
-		style = append(style, "4")
-	}
-	if prop.Foreground != nil {
-		style = append(style, fmt.Sprintf("38;2;%d;%d;%d", prop.Foreground.R, prop.Foreground.G, prop.Foreground.B))
-	}
-	if prop.Background != nil {
-		style = append(style, fmt.Sprintf("48;2;%d;%d;%d", prop.Background.R, prop.Background.G, prop.Background.B))
-	}
-	return fmt.Sprintf("\033[%sm%s%s", strings.Join(style, ";"), msg, COLOR_OFF)
+func formatCaller(pc uintptr, file string, line int) string {
+	return filepath.Base(file) + ":" + strconv.Itoa(line)
 }
