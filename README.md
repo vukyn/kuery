@@ -1,4 +1,4 @@
-# Kuery (All in one utility for Golang projects)
+# Kuery (All In One utility for Golang projects)
 
 Wrapper for many libraries to make it easier to work with go projects.
 
