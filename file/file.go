@@ -1,4 +1,4 @@
-package file
+package utils
 
 import (
 	"fmt"
@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 )
 
-// CreateFilePath creates a file path if not exist.
 func CreateFilePath(filePath string) error {
 	path, _ := filepath.Split(filePath)
 	if len(path) == 0 {
@@ -23,7 +22,8 @@ func CreateFilePath(filePath string) error {
 // Write to a file.
 // Create if not exist, or overwrite the existing file.
 //
-//	Example:
+// Example:
+//
 //	WriteFile([]byte("Hello World"), "temp/output.txt")
 func WriteFile(data []byte, filePath string) error {
 	dir, _ := filepath.Split(filePath)
@@ -42,6 +42,10 @@ func WriteFile(data []byte, filePath string) error {
 }
 
 // ClearFiles removes multiple files.
+//
+// Example:
+//
+//	ClearFiles("temp/output.txt", "temp/output2.txt")
 func ClearFiles(filepaths ...string) error {
 	for _, filepath := range filepaths {
 		if err := os.Remove(filepath); err != nil {
@@ -52,6 +56,10 @@ func ClearFiles(filepaths ...string) error {
 }
 
 // ClearFolders removes multiple directories.
+//
+// Example:
+//
+//	ClearFolders("temp", "temp2")
 func ClearFolders(dirpaths ...string) error {
 	for _, dirpath := range dirpaths {
 		if err := os.RemoveAll(dirpath); err != nil {
@@ -62,6 +70,10 @@ func ClearFolders(dirpaths ...string) error {
 }
 
 // CopyFile copies a file from src to dst.
+//
+// Example:
+//
+//	CopyFile("temp/output.txt", "temp/output2.txt")
 func CopyFile(srcPath, dstPath string) error {
 	if _, err := os.Stat(srcPath); err != nil {
 		return err
@@ -79,11 +91,13 @@ func CopyFile(srcPath, dstPath string) error {
 // Append to a file.
 // Create if not exist, or append to existing file.
 //
-//	Mode:
-//	- 0: Before
-//	- 1: After
-//	Example:
-//	- AppendFile([]byte("Hello World"), "temp/output.txt", 2)
+// Mode:
+//
+//	0: Before
+//	1: After
+//
+// Example:
+//   - AppendFile([]byte("Hello World"), "temp/output.txt", 2)
 func AppendFile(data []byte, filePath string, mode int) error {
 	dir, _ := filepath.Split(filePath)
 
@@ -126,6 +140,10 @@ func AppendFile(data []byte, filePath string, mode int) error {
 }
 
 // GetAbsDir returns the absolute path of a directory
+//
+// Example:
+//
+//	GetAbsDir("temp")
 func GetAbsDir(dirpath string) (string, error) {
 	f, err := os.Stat(dirpath)
 	if err != nil {
@@ -140,144 +158,3 @@ func GetAbsDir(dirpath string) (string, error) {
 	}
 	return abs, nil
 }
-
-// // ZipSingleFile zip the sourceFile path to outputFile path
-// func ZipSingleFile(sourceFile, outputFile string) error {
-// 	if err := CreateFilePath(outputFile); err != nil {
-// 		return err
-// 	}
-
-// 	archive, err := os.Create(outputFile)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer archive.Close()
-
-// 	zipWriter := zip.NewWriter(archive)
-// 	defer zipWriter.Close()
-
-// 	f, err := os.Open(sourceFile)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer f.Close()
-
-// 	w, err := zipWriter.Create(path.Base(f.Name()))
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if _, err := io.Copy(w, f); err != nil {
-// 		return err
-// 	}
-
-// 	return nil
-// }
-
-// // ZipMultipleFile zip list of sourceFile path to outputFile path
-// func ZipMultipleFile(outputFile string, sourceFiles ...string) error {
-// 	flags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
-// 	file, err := os.OpenFile(outputFile, flags, 0644)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to open zip for writing: %s", err)
-// 	}
-// 	defer file.Close()
-
-// 	zipw := zip.NewWriter(file)
-// 	defer zipw.Close()
-
-// 	for _, filename := range sourceFiles {
-// 		if err := appendFiles(filename, zipw); err != nil {
-// 			return fmt.Errorf("failed to add file %s to zip: %s", filename, err)
-// 		}
-// 	}
-// 	return err
-// }
-
-// func appendFiles(filename string, zipw *zip.Writer) error {
-// 	file, err := os.Open(filename)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to open %s: %s", filename, err)
-// 	}
-// 	defer file.Close()
-
-// 	_, filename = filepath.Split(filename)
-// 	wr, err := zipw.Create(filename)
-// 	if err != nil {
-// 		msg := "failed to create entry for %s in zip file: %s"
-// 		return fmt.Errorf(msg, filename, err)
-// 	}
-
-// 	if _, err := io.Copy(wr, file); err != nil {
-// 		return fmt.Errorf("failed to write %s to zip: %s", filename, err)
-// 	}
-
-// 	return nil
-// }
-
-// func ZZip(folder string, files ...string) error {
-// 	targetZip := folder //"output.zip"
-
-// 	// Mở file zip để ghi
-// 	zipFile, err := os.Create(targetZip)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer zipFile.Close()
-
-// 	// Tạo biến zip.Writer để ghi vào file zip
-// 	zipWriter := zip.NewWriter(zipFile)
-// 	defer zipWriter.Close()
-// 	for _, file := range files {
-// 		err = write(zipWriter, file)
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
-// 	return nil
-// }
-
-// func write(zipWriter *zip.Writer, file string) error {
-// 	fileInfo, err := os.Stat(file)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	// Tạo một header cho file trong file zip
-// 	header, err := zip.FileInfoHeader(fileInfo)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	// Đặt tên file trong file zip
-// 	header.Name = fileInfo.Name()
-
-// 	// Tạo một đối tượng io.Writer để ghi dữ liệu vào file zip
-// 	writer, err := zipWriter.CreateHeader(header)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	// Mở file nguồn để đọc dữ liệu
-// 	sourceFile, err := os.Open(file)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer sourceFile.Close()
-
-// 	// Sử dụng buffer để đọc dữ liệu từ file nguồn và ghi vào file zip
-// 	buffer := make([]byte, 1024)
-// 	for {
-// 		bytesRead, err := sourceFile.Read(buffer)
-// 		if err == io.EOF {
-// 			break
-// 		}
-// 		if err != nil {
-// 			return err
-// 		}
-// 		_, err = writer.Write(buffer[:bytesRead])
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
-// 	return nil
-// }

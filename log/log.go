@@ -8,6 +8,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog/pkgerrors"
 )
 
 const (
@@ -18,20 +19,19 @@ const (
 	LOG_LEVEL_INFO     = "info"
 	LOG_LEVEL_WARN     = "warn"
 	LOG_LEVEL_ERROR    = "error"
-	LOG_LEVEL_FATAL    = "fatal"
 	LOG_LEVEL_PANIC    = "panic"
 	LOG_LEVEL_DISABLED = "disabled"
 )
 
 type Config struct {
 	Mode  string // pretty, json
-	Level string // debug, info, warn, error, fatal, panic, disabled
+	Level string // debug, info, warn, error, panic, disabled
 }
 
 func Init(cfg Config) error {
-	zerolog.CallerMarshalFunc = formatCaller
+	zerolog.CallerMarshalFunc = formatCaller // format caller (log.go:77)
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Logger = log.With().Caller().Logger()
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
 	switch cfg.Mode {
 	case LOG_MODE_PRETTY:
@@ -51,8 +51,6 @@ func Init(cfg Config) error {
 		zerolog.SetGlobalLevel(zerolog.WarnLevel)
 	case LOG_LEVEL_ERROR:
 		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-	case LOG_LEVEL_FATAL:
-		zerolog.SetGlobalLevel(zerolog.FatalLevel)
 	case LOG_LEVEL_PANIC:
 		zerolog.SetGlobalLevel(zerolog.PanicLevel)
 	case LOG_LEVEL_DISABLED:
@@ -64,16 +62,16 @@ func Init(cfg Config) error {
 	return nil
 }
 
-func Disable() {
-	log.Logger = log.Output(zerolog.Nop())
-}
-
 type Logger struct {
 	zerolog.Logger
 }
 
 func New(pkg, funcName string) *Logger {
-	log := log.Logger.With().Str("pkg", pkg).Str("func", funcName).Logger()
+	log := log.With().
+		Caller().
+		Str("pkg", pkg).
+		Str("func", funcName).
+		Logger()
 	return &Logger{log}
 }
 
@@ -82,15 +80,11 @@ func (l *Logger) Info(msg string, args ...any) {
 }
 
 func (l *Logger) Error(msg string, err error) {
-	l.Logger.Error().Stack().Err(err).Msg(msg) // need to print stack trace
+	l.Logger.Error().Stack().Err(err).Msg(msg)
 }
 
 func (l *Logger) Debug(msg string, args ...any) {
 	l.Logger.Debug().Msgf(msg, args...)
-}
-
-func (l *Logger) Fatal(msg string, args ...any) {
-	l.Logger.Fatal().Msgf(msg, args...)
 }
 
 func (l *Logger) Panic(msg string, args ...any) {
