@@ -7,7 +7,7 @@ import (
 )
 
 // Print with formatted
-func PrettyPrint(v interface{}) string {
+func PrettyPrint(v any) string {
 	res, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return err.Error()
@@ -25,7 +25,7 @@ func DisablePrettyLog() {
 	pretty = false
 }
 
-func Infof(msg string, args ...interface{}) {
+func Infof(msg string, args ...any) {
 	if pretty {
 		fmt.Printf("%s ", Color("INFO", BLUE))
 	} else {
@@ -35,7 +35,7 @@ func Infof(msg string, args ...interface{}) {
 	fmt.Println()
 }
 
-func Errorf(msg string, args ...interface{}) {
+func Errorf(msg string, args ...any) {
 	if pretty {
 		fmt.Printf("%s ", Color("ERROR", RED))
 	} else {
@@ -45,7 +45,7 @@ func Errorf(msg string, args ...interface{}) {
 	fmt.Println()
 }
 
-func Debugf(msg string, args ...interface{}) {
+func Debugf(msg string, args ...any) {
 	if pretty {
 		fmt.Printf("%s ", Color("DEBUG", PURPLE))
 	} else {
@@ -55,7 +55,7 @@ func Debugf(msg string, args ...interface{}) {
 	fmt.Println()
 }
 
-func Warnf(msg string, args ...interface{}) {
+func Warnf(msg string, args ...any) {
 	if pretty {
 		fmt.Printf("%s ", Color("WARN", YELLOW))
 	} else {

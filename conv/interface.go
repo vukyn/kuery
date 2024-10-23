@@ -4,6 +4,15 @@ import (
 	"reflect"
 )
 
+// Get value from interface. Return default value if key not exists or zero value.
+func ReadInterface[T any](src map[string]any, key string, defaultValue T) T {
+	value, exists := src[key]
+	if !exists || IsZero(value) {
+		return defaultValue
+	}
+	return value.(T)
+}
+
 // IsZero returns true if the value is nil or zero.
 // The value can be a pointer, slice, map, or any other type.
 // If the value is a pointer, it returns true if the pointer is nil.
