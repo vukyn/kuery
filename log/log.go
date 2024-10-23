@@ -69,6 +69,7 @@ type Logger struct {
 func New(pkg, funcName string) *Logger {
 	log := log.With().
 		Caller().
+		CallerWithSkipFrameCount(3).
 		Str("pkg", pkg).
 		Str("func", funcName).
 		Logger()
