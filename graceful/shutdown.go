@@ -1,12 +1,15 @@
 package graceful
 
 import (
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 )
+
+type Logger interface {
+	Infof(format string, args ...any)
+}
 
 // ShutDownSlowly will shutdown the process after delay time
 // delay: time to wait before shutdown
@@ -16,11 +19,11 @@ import (
 //
 // Example:
 //
-//	graceful.ShutDownSlowly(5 * time.Second)
-func ShutDownSlowly(delay time.Duration) {
+//	graceful.ShutDownSlowly(logger, 5 * time.Second)
+func ShutDownSlowly(logger Logger, delay time.Duration) {
 	q := make(chan os.Signal, 1)
 	signal.Notify(q, syscall.SIGTERM, syscall.SIGINT, os.Interrupt)
-	log.Printf("receive signal: %v\n", <-q)
-	log.Printf("Shut down slowly in %v\n", delay)
+	logger.Infof("receive signal: %v\n", <-q)
+	logger.Infof("Shut down slowly in %v\n", delay)
 	time.Sleep(delay)
 }
