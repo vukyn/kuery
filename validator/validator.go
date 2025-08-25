@@ -32,3 +32,34 @@ func IsUUID(str string) bool {
 func IsUUIDV4(str string) bool {
 	return govalidator.IsUUIDv4(str)
 }
+
+func IsULID(str string) bool {
+	return govalidator.IsULID(str)
+}
+
+func IsIpV4(str string) bool {
+	return govalidator.IsIPv4(str)
+}
+
+func IsIpV6(str string) bool {
+	return govalidator.IsIPv6(str)
+}
+
+func IsIp(str string) bool {
+	return govalidator.IsIP(str)
+}
+
+func IsPort(str string) bool {
+	return govalidator.IsPort(str)
+}
+
+func IsNatural(str string) (bool, int64) {
+	if !govalidator.IsNumeric(str) {
+		return false, 0
+	}
+	num, err := strconv.ParseFloat(str, 64)
+	if err != nil {
+		return false, 0
+	}
+	return govalidator.IsNatural(num), int64(num)
+}
