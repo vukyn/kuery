@@ -88,6 +88,14 @@ func (l *Logger) Debug(msg string, args ...any) {
 	l.Logger.Debug().Msgf(msg, args...)
 }
 
+func (l *Logger) Warn(msg string, args ...any) {
+	l.Logger.Warn().Msgf(msg, args...)
+}
+
+func (l *Logger) Fatal(msg string, err error) {
+	l.Logger.Fatal().Stack().Err(err).Msg(msg)
+}
+
 func (l *Logger) Panic(msg string, args ...any) {
 	l.Logger.Panic().Msgf(msg, args...)
 }
