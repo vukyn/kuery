@@ -62,41 +62,112 @@ func Init(cfg Config) error {
 	return nil
 }
 
-type Logger struct {
-	zerolog.Logger
+type LoggerOption func(*zerolog.Event) error
+
+type SimpleLogger interface {
+	Infof(format string, v ...any)
+	Errorf(format string, v ...any)
 }
 
-func New(pkg, funcName string) *Logger {
+type Logger interface {
+	SimpleLogger
+	WithField(key string, value any) Logger
+	WithPkg(pkg string) Logger
+	WithFunc(funcName string) Logger
+	Info(msg string)
+	Error(msg string, err error)
+	Debug(msg string, args ...any)
+	Debugf(msg string, args ...any)
+	Warn(msg string, args ...any)
+	Warnf(msg string, args ...any)
+	Fatal(msg string, err error)
+	Fatalf(msg string, args ...any)
+	Panic(msg string, args ...any)
+	Panicf(msg string, args ...any)
+}
+
+type logger struct {
+	zerolog.Logger
+	opts []LoggerOption
+}
+
+func New() Logger {
 	log := log.With().
 		Caller().
 		CallerWithSkipFrameCount(3).
-		Str("pkg", pkg).
-		Str("func", funcName).
 		Logger()
-	return &Logger{log}
+	return &logger{Logger: log}
 }
 
-func (l *Logger) Info(msg string, args ...any) {
+func (l *logger) WithField(key string, value any) Logger {
+	l.opts = append(l.opts, func(event *zerolog.Event) error {
+		event.Any(key, value)
+		return nil
+	})
+	return l
+}
+
+func (l *logger) WithPkg(pkg string) Logger {
+	l.opts = append(l.opts, func(event *zerolog.Event) error {
+		event.Str("pkg", pkg)
+		return nil
+	})
+	return l
+}
+
+func (l *logger) WithFunc(funcName string) Logger {
+	l.opts = append(l.opts, func(event *zerolog.Event) error {
+		event.Str("func", funcName)
+		return nil
+	})
+	return l
+}
+
+func (l *logger) Info(msg string) {
+	l.Logger.Info().Msg(msg)
+}
+
+func (l *logger) Infof(msg string, args ...any) {
 	l.Logger.Info().Msgf(msg, args...)
 }
 
-func (l *Logger) Error(msg string, err error) {
+func (l *logger) Error(msg string, err error) {
 	l.Logger.Error().Stack().Err(err).Msg(msg)
 }
 
-func (l *Logger) Debug(msg string, args ...any) {
+func (l *logger) Errorf(msg string, args ...any) {
+	l.Logger.Error().Msgf(msg, args...)
+}
+
+func (l *logger) Debug(msg string, args ...any) {
 	l.Logger.Debug().Msgf(msg, args...)
 }
 
-func (l *Logger) Warn(msg string, args ...any) {
+func (l *logger) Debugf(msg string, args ...any) {
+	l.Logger.Debug().Msgf(msg, args...)
+}
+
+func (l *logger) Warn(msg string, args ...any) {
 	l.Logger.Warn().Msgf(msg, args...)
 }
 
-func (l *Logger) Fatal(msg string, err error) {
+func (l *logger) Warnf(msg string, args ...any) {
+	l.Logger.Warn().Msgf(msg, args...)
+}
+
+func (l *logger) Fatal(msg string, err error) {
 	l.Logger.Fatal().Stack().Err(err).Msg(msg)
 }
 
-func (l *Logger) Panic(msg string, args ...any) {
+func (l *logger) Fatalf(msg string, args ...any) {
+	l.Logger.Fatal().Msgf(msg, args...)
+}
+
+func (l *logger) Panic(msg string, args ...any) {
+	l.Logger.Panic().Msgf(msg, args...)
+}
+
+func (l *logger) Panicf(msg string, args ...any) {
 	l.Logger.Panic().Msgf(msg, args...)
 }
 
