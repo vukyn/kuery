@@ -65,8 +65,18 @@ func Init(cfg Config) error {
 type LoggerOption func(*zerolog.Event) error
 
 type SimpleLogger interface {
+	Info(msg string)
 	Infof(format string, v ...any)
+	Error(msg string)
 	Errorf(format string, v ...any)
+	Debug(msg string)
+	Debugf(msg string, args ...any)
+	Warn(msg string)
+	Warnf(msg string, args ...any)
+	Fatal(msg string, err error)
+	Fatalf(msg string, args ...any)
+	Panic(msg string)
+	Panicf(msg string, args ...any)
 }
 
 type Logger interface {
@@ -74,16 +84,6 @@ type Logger interface {
 	WithField(key string, value any) Logger
 	WithPkg(pkg string) Logger
 	WithFunc(funcName string) Logger
-	Info(msg string)
-	Error(msg string, err error)
-	Debug(msg string, args ...any)
-	Debugf(msg string, args ...any)
-	Warn(msg string, args ...any)
-	Warnf(msg string, args ...any)
-	Fatal(msg string, err error)
-	Fatalf(msg string, args ...any)
-	Panic(msg string, args ...any)
-	Panicf(msg string, args ...any)
 }
 
 type logger struct {
@@ -131,24 +131,24 @@ func (l *logger) Infof(msg string, args ...any) {
 	l.Logger.Info().Msgf(msg, args...)
 }
 
-func (l *logger) Error(msg string, err error) {
-	l.Logger.Error().Stack().Err(err).Msg(msg)
+func (l *logger) Error(msg string) {
+	l.Logger.Error().Stack().Msg(msg)
 }
 
 func (l *logger) Errorf(msg string, args ...any) {
 	l.Logger.Error().Msgf(msg, args...)
 }
 
-func (l *logger) Debug(msg string, args ...any) {
-	l.Logger.Debug().Msgf(msg, args...)
+func (l *logger) Debug(msg string) {
+	l.Logger.Debug().Msg(msg)
 }
 
 func (l *logger) Debugf(msg string, args ...any) {
 	l.Logger.Debug().Msgf(msg, args...)
 }
 
-func (l *logger) Warn(msg string, args ...any) {
-	l.Logger.Warn().Msgf(msg, args...)
+func (l *logger) Warn(msg string) {
+	l.Logger.Warn().Msg(msg)
 }
 
 func (l *logger) Warnf(msg string, args ...any) {
@@ -163,8 +163,8 @@ func (l *logger) Fatalf(msg string, args ...any) {
 	l.Logger.Fatal().Msgf(msg, args...)
 }
 
-func (l *logger) Panic(msg string, args ...any) {
-	l.Logger.Panic().Msgf(msg, args...)
+func (l *logger) Panic(msg string) {
+	l.Logger.Panic().Msg(msg)
 }
 
 func (l *logger) Panicf(msg string, args ...any) {
