@@ -81,6 +81,7 @@ type SimpleLogger interface {
 
 type Logger interface {
 	SimpleLogger
+	Zerolog() zerolog.Logger
 	WithField(key string, value any) Logger
 	WithPkg(pkg string) Logger
 	WithFunc(funcName string) Logger
@@ -97,6 +98,10 @@ func New() Logger {
 		CallerWithSkipFrameCount(3).
 		Logger()
 	return &logger{Logger: log}
+}
+
+func (l *logger) Zerolog() zerolog.Logger {
+	return l.Logger
 }
 
 func (l *logger) WithField(key string, value any) Logger {
