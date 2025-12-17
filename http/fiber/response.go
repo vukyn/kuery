@@ -31,3 +31,9 @@ func Err(c *fiber.Ctx, err error) error {
 		})
 	}
 }
+
+func Unauthorized(c *fiber.Ctx, err error) error {
+	return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
+		"error": "Unauthorized",
+	})
+}
