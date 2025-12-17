@@ -20,10 +20,15 @@ func OK(c *fiber.Ctx, data any) error {
 func Err(c *fiber.Ctx, err error) error {
 	switch err := err.(type) {
 	case pkgErr.Error:
-		return c.Status(err.Status()).JSON(pkgBase.Response{
-			Code:    err.Status(),
-			Message: err.Error(),
-		})
+		switch err.Status() {
+		case http.StatusUnauthorized:
+			return Unauthorized(c)
+		default:
+			return c.Status(err.Status()).JSON(pkgBase.Response{
+				Code:    err.Status(),
+				Message: err.Error(),
+			})
+		}
 	default:
 		return c.Status(http.StatusInternalServerError).JSON(pkgBase.Response{
 			Code:    http.StatusInternalServerError,
