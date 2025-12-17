@@ -51,6 +51,13 @@ func Forward(res base.Response) error {
 	}
 }
 
+func Unauthorized(message string) error {
+	return &errorImpl{
+		message: message,
+		status:  http.StatusUnauthorized,
+	}
+}
+
 func (e *errorImpl) Error() string {
 	return e.message
 }
