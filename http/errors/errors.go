@@ -1,6 +1,10 @@
 package errors
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/vukyn/kuery/http/base"
+)
 
 type Error interface {
 	Error() string
@@ -37,6 +41,13 @@ func InternalServerError(message string) error {
 	return &errorImpl{
 		message: message,
 		status:  http.StatusInternalServerError,
+	}
+}
+
+func Forward(res base.Response) error {
+	return &errorImpl{
+		message: res.Message,
+		status:  res.Code,
 	}
 }
 
