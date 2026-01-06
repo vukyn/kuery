@@ -16,6 +16,7 @@ type errorImpl struct {
 	status  int
 }
 
+// 400
 func InvalidRequest(message string) error {
 	return &errorImpl{
 		message: message,
@@ -23,6 +24,7 @@ func InvalidRequest(message string) error {
 	}
 }
 
+// 500
 func DatabaseError(message string) error {
 	return &errorImpl{
 		message: message,
@@ -30,6 +32,7 @@ func DatabaseError(message string) error {
 	}
 }
 
+// 404
 func NotFound(message string) error {
 	return &errorImpl{
 		message: message,
@@ -37,6 +40,7 @@ func NotFound(message string) error {
 	}
 }
 
+// 500
 func InternalServerError(message string) error {
 	return &errorImpl{
 		message: message,
@@ -51,10 +55,19 @@ func Forward(res base.Response) error {
 	}
 }
 
+// 401
 func Unauthorized(message string) error {
 	return &errorImpl{
 		message: message,
 		status:  http.StatusUnauthorized,
+	}
+}
+
+// 403
+func Forbidden(message string) error {
+	return &errorImpl{
+		message: message,
+		status:  http.StatusForbidden,
 	}
 }
 
