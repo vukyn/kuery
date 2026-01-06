@@ -24,15 +24,23 @@ const (
 )
 
 type Config struct {
-	Mode  string // pretty, json
-	Level string // debug, info, warn, error, panic, disabled
+	Mode              string // pretty, json
+	Level             string // debug, info, warn, error, panic, disabled
+	DisableLineNumber bool   // disable line number
 }
 
 func Init(cfg Config) error {
-	zerolog.CallerMarshalFunc = formatCaller // format caller (log.go:77)
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
+	// set caller
+	if cfg.DisableLineNumber {
+		zerolog.CallerMarshalFunc = emptyCaller
+	} else {
+		zerolog.CallerMarshalFunc = formatCaller // format caller (log.go:77)
+	}
+
+	// set log mode
 	switch cfg.Mode {
 	case LOG_MODE_PRETTY:
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
@@ -42,6 +50,7 @@ func Init(cfg Config) error {
 		return fmt.Errorf("invalid log mode: %s", cfg.Mode)
 	}
 
+	// set log level
 	switch cfg.Level {
 	case LOG_LEVEL_DEBUG:
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
@@ -174,6 +183,10 @@ func (l *logger) Panic(msg string) {
 
 func (l *logger) Panicf(msg string, args ...any) {
 	l.Logger.Panic().Msgf(msg, args...)
+}
+
+func emptyCaller(pc uintptr, file string, line int) string {
+	return ""
 }
 
 func formatCaller(pc uintptr, file string, line int) string {
