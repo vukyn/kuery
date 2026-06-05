@@ -7,7 +7,7 @@ Wrapper for many libraries to make it easier to work with go projects.
 This package requires Go(v1.20+).
 
 ```shell
-go get github.com/vukyn/kuery/v2
+go get github.com/vukyn/kuery
 ```
 
 ## Usage
