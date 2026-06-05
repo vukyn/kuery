@@ -6,15 +6,15 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/didip/tollbooth/v7 v7.0.2
 	github.com/gin-gonic/gin v1.10.0
-	github.com/gofiber/fiber/v2 v2.52.10
+	github.com/gofiber/fiber/v2 v2.52.13
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/rs/zerolog v1.34.0
 	github.com/sarulabs/di/v2 v2.5.2
 	github.com/uptrace/bun v1.2.16
-	golang.org/x/crypto v0.24.0
-	golang.org/x/sys v0.38.0
+	golang.org/x/crypto v0.52.0
+	golang.org/x/sys v0.45.0
 )
 
 require (
@@ -54,8 +54,8 @@ require (
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
-	golang.org/x/net v0.25.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
