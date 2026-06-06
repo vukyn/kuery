@@ -42,3 +42,9 @@ func Unauthorized(c *fiber.Ctx) error {
 		"error": "Unauthorized",
 	})
 }
+
+func Forbidden(c *fiber.Ctx) error {
+	return c.Status(http.StatusForbidden).JSON(fiber.Map{
+		"error": "Forbidden",
+	})
+}

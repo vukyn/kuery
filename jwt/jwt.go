@@ -22,6 +22,12 @@ func GenerateJWT(secretKey string, expireIn int, userID, email string) (string, 
 	return tokenString, claims, nil
 }
 
+// GenerateJWTFromClaims generates a JWT token from prebuilt claims using HMAC (HS256)
+func GenerateJWTFromClaims(secretKey string, claims pkgClaims.Claims) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims.MapClaims)
+	return token.SignedString([]byte(secretKey))
+}
+
 // ValidateJWT validates a JWT token using HMAC (HS256)
 func ValidateJWT(tokenString, secretKey string) (pkgClaims.Claims, error) {
 	claims := pkgClaims.Claims{}
@@ -103,6 +109,16 @@ func GenerateJWTWithRSAPrivateKey(privateKeyPEM string, expireIn int, userID, em
 		return "", pkgClaims.Claims{}, err
 	}
 	return tokenString, claims, nil
+}
+
+// GenerateJWTWithRSAPrivateKeyFromClaims generates a JWT token from prebuilt claims using RSA private key (RS256)
+func GenerateJWTWithRSAPrivateKeyFromClaims(privateKeyPEM string, claims pkgClaims.Claims) (string, error) {
+	privateKey, err := parseRSAPrivateKey(privateKeyPEM)
+	if err != nil {
+		return "", err
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims.MapClaims)
+	return token.SignedString(privateKey)
 }
 
 // ValidateJWTWithRSAPublicKey validates a JWT token using RSA public key (RS256) - used for access tokens

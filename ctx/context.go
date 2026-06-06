@@ -18,6 +18,8 @@ var (
 	ClientIPKey           ContextKey = "client_ip"
 	UserAgentKey          ContextKey = "user_agent"
 	IsAdminKey            ContextKey = "is_admin"
+	PermsKey              ContextKey = "perms"
+	RolesKey              ContextKey = "roles"
 	DiContainerRequestKey ContextKey = "di_container_request"
 )
 
@@ -25,6 +27,9 @@ func SetClaimsToFiberCtx(ctx *fiber.Ctx, claims pkgClaims.Claims) {
 	ctx.Locals(string(UserIDKey), claims.GetUserID())
 	ctx.Locals(string(EmailKey), claims.GetEmail())
 	ctx.Locals(string(TokenIDKey), claims.GetTokenID())
+	ctx.Locals(string(PermsKey), claims.GetPerms())
+	ctx.Locals(string(RolesKey), claims.GetRoles())
+	ctx.Locals(string(IsAdminKey), claims.GetIsAdmin())
 }
 
 func SetUserIDToFiberCtx(ctx *fiber.Ctx, userID string) {
@@ -46,6 +51,8 @@ func NewContextFromFiberCtx(fiberCtx *fiber.Ctx) context.Context {
 	userAgent := GetUserAgentFromFiberCtx(fiberCtx)
 	clientIP := GetClientIPFromFiberCtx(fiberCtx)
 	isAdmin := GetUserIsAdminFromFiberCtx(fiberCtx)
+	perms := GetPermsFromFiberCtx(fiberCtx)
+	roles := GetRolesFromFiberCtx(fiberCtx)
 
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, UserIDKey, userID)
@@ -54,6 +61,8 @@ func NewContextFromFiberCtx(fiberCtx *fiber.Ctx) context.Context {
 	ctx = context.WithValue(ctx, UserAgentKey, userAgent)
 	ctx = context.WithValue(ctx, ClientIPKey, clientIP)
 	ctx = context.WithValue(ctx, IsAdminKey, isAdmin)
+	ctx = context.WithValue(ctx, PermsKey, perms)
+	ctx = context.WithValue(ctx, RolesKey, roles)
 	return ctx
 }
 
@@ -120,6 +129,28 @@ func GetIsAdmin(ctx context.Context) bool {
 	return false
 }
 
+func GetPerms(ctx context.Context) []string {
+	perms := ctx.Value(PermsKey)
+	if perms == nil {
+		return nil
+	}
+	if perms, ok := perms.([]string); ok {
+		return perms
+	}
+	return nil
+}
+
+func GetRoles(ctx context.Context) []string {
+	roles := ctx.Value(RolesKey)
+	if roles == nil {
+		return nil
+	}
+	if roles, ok := roles.([]string); ok {
+		return roles
+	}
+	return nil
+}
+
 func GetUserIdFromFiberCtx(ctx *fiber.Ctx) string {
 	val := ctx.Locals(string(UserIDKey))
 	if val == nil {
@@ -161,6 +192,28 @@ func GetUserIsAdminFromFiberCtx(ctx *fiber.Ctx) bool {
 		return isAdmin
 	}
 	return false
+}
+
+func GetPermsFromFiberCtx(ctx *fiber.Ctx) []string {
+	val := ctx.Locals(string(PermsKey))
+	if val == nil {
+		return nil
+	}
+	if perms, ok := val.([]string); ok {
+		return perms
+	}
+	return nil
+}
+
+func GetRolesFromFiberCtx(ctx *fiber.Ctx) []string {
+	val := ctx.Locals(string(RolesKey))
+	if val == nil {
+		return nil
+	}
+	if roles, ok := val.([]string); ok {
+		return roles
+	}
+	return nil
 }
 
 func SetDiContainerRequestToFiberCtx(ctx *fiber.Ctx, request di.Container) {
