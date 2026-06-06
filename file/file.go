@@ -1,3 +1,7 @@
+// Package utils provides file and directory helpers.
+//
+// All paths are caller-supplied; callers own path validation and
+// sanitization before passing them in.
 package utils
 
 import (
@@ -16,9 +20,9 @@ func WriteFile(data []byte, filePath string) error {
 	dir, _ := filepath.Split(filePath)
 
 	if _, err := os.Stat(dir); err == nil {
-		os.Remove(filePath)
+		_ = os.Remove(filePath) // file may not exist; overwrite follows
 	} else {
-		if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			return err
 		}
 	}
@@ -117,7 +121,7 @@ func AppendFile(data []byte, filePath string, mode int) error {
 		return nil
 	}
 
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filePath, data, 0644); err != nil {
