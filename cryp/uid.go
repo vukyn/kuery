@@ -31,6 +31,10 @@ func ULID() string {
 
 // Hash content with MD5 algorithm
 //
+// Warning: MD5 is cryptographically broken. Use only for
+// non-security checksums; prefer HashSHA256 or HashBcrypt for
+// anything security-sensitive.
+//
 // Example:
 //
 //	HashMD5("hello") => "5d41402abc4b2a76b9719d911017c592"
