@@ -9,14 +9,19 @@ import (
 )
 
 const (
-	TokenIDKey   = "jti"
-	UserIDKey    = "uid"
-	EmailKey     = "email"
-	ExpiredAtKey = "exp"
-	PermsKey     = "perms"
-	RolesKey     = "roles"
-	IsAdminKey   = "adm"
+	TokenIDKey        = "jti"
+	UserIDKey         = "uid"
+	EmailKey          = "email"
+	ExpiredAtKey      = "exp"
+	AudienceKey       = "aud"
+	ResourceAccessKey = "resource_access"
 )
+
+// AppAccess is the per-app access block stored under resource_access[app_code].
+// Only permission codes are carried in the token (no roles claim).
+type AppAccess struct {
+	Perms []string `json:"perms"`
+}
 
 type Claims struct {
 	jwt.MapClaims
@@ -33,21 +38,22 @@ func NewClaims(userID, email string, expireIn int64) Claims {
 	}
 }
 
-// WithPerms attaches permission codes to the claims
-func (c Claims) WithPerms(perms []string) Claims {
-	c.MapClaims[PermsKey] = perms
+// WithAudience restricts the token to the given app codes (the "aud" claim).
+func (c Claims) WithAudience(appCodes []string) Claims {
+	c.MapClaims[AudienceKey] = appCodes
 	return c
 }
 
-// WithRoles attaches role codes to the claims
-func (c Claims) WithRoles(roles []string) Claims {
-	c.MapClaims[RolesKey] = roles
-	return c
-}
-
-// WithIsAdmin attaches the admin flag to the claims
-func (c Claims) WithIsAdmin(isAdmin bool) Claims {
-	c.MapClaims[IsAdminKey] = isAdmin
+// WithResourceAccess attaches per-app permission codes to the claims, stored as a
+// nested map ({"<app_code>":{"perms":[...]}}) so the JWT round-trip stays lossless.
+func (c Claims) WithResourceAccess(access map[string][]string) Claims {
+	resourceAccess := make(map[string]any, len(access))
+	for appCode, perms := range access {
+		resourceAccess[appCode] = map[string]any{
+			"perms": perms,
+		}
+	}
+	c.MapClaims[ResourceAccessKey] = resourceAccess
 	return c
 }
 
@@ -89,27 +95,25 @@ func (c Claims) IsExpired() bool {
 	return c.GetExpiredAt().Before(time.Now())
 }
 
-func (c Claims) GetPerms() []string {
-	return toStringSlice(c.MapClaims[PermsKey])
-}
-
-func (c Claims) GetRoles() []string {
-	return toStringSlice(c.MapClaims[RolesKey])
-}
-
-func (c Claims) GetIsAdmin() bool {
-	val := c.MapClaims[IsAdminKey]
-	if val == nil {
-		return false
+// GetAudience returns the app codes the token is valid for. Per the JWT spec the
+// "aud" claim may be encoded as a single string or an array, so both are accepted.
+func (c Claims) GetAudience() []string {
+	val := c.MapClaims[AudienceKey]
+	if str, ok := val.(string); ok {
+		return []string{str}
 	}
-	if isAdmin, ok := val.(bool); ok {
-		return isAdmin
-	}
-	return false
+	return toStringSlice(val)
 }
 
-func (c Claims) HasPerm(perm string) bool {
-	return slices.Contains(c.GetPerms(), perm)
+// GetPermsForApp returns the permission codes granted for the given app code.
+func (c Claims) GetPermsForApp(appCode string) []string {
+	access := toAppAccessMap(c.MapClaims[ResourceAccessKey])
+	return access[appCode]
+}
+
+// HasPermForApp reports whether the caller holds the given permission for the app.
+func (c Claims) HasPermForApp(appCode, perm string) bool {
+	return slices.Contains(c.GetPermsForApp(appCode), perm)
 }
 
 // toStringSlice normalizes claim values to []string
@@ -128,4 +132,24 @@ func toStringSlice(val any) []string {
 		return result
 	}
 	return nil
+}
+
+// toAppAccessMap defensively decodes the resource_access claim into a
+// {app_code: perms} map. The claim is stored as a nested map of
+// {app_code: {"perms": [...]}}; JSON decoding turns the inner objects into
+// map[string]any and the perm arrays into []any, so both shapes are handled.
+func toAppAccessMap(val any) map[string][]string {
+	outer, ok := val.(map[string]any)
+	if !ok {
+		return nil
+	}
+	result := make(map[string][]string, len(outer))
+	for appCode, inner := range outer {
+		innerMap, ok := inner.(map[string]any)
+		if !ok {
+			continue
+		}
+		result[appCode] = toStringSlice(innerMap["perms"])
+	}
+	return result
 }

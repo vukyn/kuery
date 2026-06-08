@@ -10,14 +10,13 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// newTestApp wires a route guarded by the given middleware, with claims
-// locals populated as the service's auth middleware would.
-func newTestApp(perms []string, isAdmin bool, guard fiber.Handler) *fiber.App {
+// newTestApp wires a route guarded by the given middleware, with the caller's
+// perms populated as the service's auth middleware would.
+func newTestApp(perms []string, guard fiber.Handler) *fiber.App {
 	app := fiber.New()
 	app.Get("/protected",
 		func(c *fiber.Ctx) error {
-			c.Locals(string(pkgCtx.PermsKey), perms)
-			pkgCtx.SetUserIsAdminToFiberCtx(c, isAdmin)
+			pkgCtx.SetPermsToFiberCtx(c, perms)
 			return c.Next()
 		},
 		guard,
@@ -38,17 +37,15 @@ func TestRequirePermission(t *testing.T) {
 	tests := []struct {
 		name       string
 		perms      []string
-		isAdmin    bool
 		wantStatus int
 	}{
-		{"allow when permission held", []string{"user:read", "role:read"}, false, http.StatusOK},
-		{"deny when permission missing", []string{"role:read"}, false, http.StatusForbidden},
-		{"deny when no permissions", nil, false, http.StatusForbidden},
-		{"admin bypass", nil, true, http.StatusOK},
+		{"allow when permission held", []string{"user:read", "role:read"}, http.StatusOK},
+		{"deny when permission missing", []string{"role:read"}, http.StatusForbidden},
+		{"deny when no permissions", nil, http.StatusForbidden},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := newTestApp(tt.perms, tt.isAdmin, RequirePermission("user:read"))
+			app := newTestApp(tt.perms, RequirePermission("user:read"))
 			resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/protected", nil))
 			if err != nil {
 				t.Fatalf("app.Test() error = %v", err)
@@ -65,18 +62,16 @@ func TestRequireAnyPermission(t *testing.T) {
 	tests := []struct {
 		name       string
 		perms      []string
-		isAdmin    bool
 		wantStatus int
 	}{
-		{"allow when first permission held", []string{"user:read"}, false, http.StatusOK},
-		{"allow when second permission held", []string{"user:create"}, false, http.StatusOK},
-		{"deny when none held", []string{"role:read"}, false, http.StatusForbidden},
-		{"deny when no permissions", nil, false, http.StatusForbidden},
-		{"admin bypass", nil, true, http.StatusOK},
+		{"allow when first permission held", []string{"user:read"}, http.StatusOK},
+		{"allow when second permission held", []string{"user:create"}, http.StatusOK},
+		{"deny when none held", []string{"role:read"}, http.StatusForbidden},
+		{"deny when no permissions", nil, http.StatusForbidden},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := newTestApp(tt.perms, tt.isAdmin, RequireAnyPermission("user:read", "user:create"))
+			app := newTestApp(tt.perms, RequireAnyPermission("user:read", "user:create"))
 			resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/protected", nil))
 			if err != nil {
 				t.Fatalf("app.Test() error = %v", err)
