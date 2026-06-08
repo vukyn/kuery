@@ -13,9 +13,11 @@ import (
 
 func buildTestClaims() pkgClaims.Claims {
 	return pkgClaims.NewClaims("user-1", "user@example.com", 3600).
-		WithPerms([]string{"user:read", "role:read"}).
-		WithRoles([]string{"member"}).
-		WithIsAdmin(true)
+		WithAudience([]string{"isme", "medioa2"}).
+		WithResourceAccess(map[string][]string{
+			"isme":    {"user:read", "role:read"},
+			"medioa2": {"object:read"},
+		})
 }
 
 func assertClaimsSurvived(t *testing.T, parsed pkgClaims.Claims) {
@@ -26,15 +28,27 @@ func assertClaimsSurvived(t *testing.T, parsed pkgClaims.Claims) {
 	if got := parsed.GetEmail(); got != "user@example.com" {
 		t.Errorf("GetEmail() = %q, want %q", got, "user@example.com")
 	}
-	if got, want := parsed.GetPerms(), []string{"user:read", "role:read"}; !slices.Equal(got, want) {
-		t.Errorf("GetPerms() = %v, want %v", got, want)
+	if got, want := parsed.GetAudience(), []string{"isme", "medioa2"}; !slices.Equal(sorted(got), sorted(want)) {
+		t.Errorf("GetAudience() = %v, want %v", got, want)
 	}
-	if got, want := parsed.GetRoles(), []string{"member"}; !slices.Equal(got, want) {
-		t.Errorf("GetRoles() = %v, want %v", got, want)
+	if got, want := parsed.GetPermsForApp("isme"), []string{"user:read", "role:read"}; !slices.Equal(got, want) {
+		t.Errorf("GetPermsForApp(isme) = %v, want %v", got, want)
 	}
-	if !parsed.GetIsAdmin() {
-		t.Error("GetIsAdmin() = false, want true")
+	if got, want := parsed.GetPermsForApp("medioa2"), []string{"object:read"}; !slices.Equal(got, want) {
+		t.Errorf("GetPermsForApp(medioa2) = %v, want %v", got, want)
 	}
+	if !parsed.HasPermForApp("isme", "user:read") {
+		t.Error("HasPermForApp(isme, user:read) = false, want true")
+	}
+	if parsed.HasPermForApp("medioa2", "user:read") {
+		t.Error("HasPermForApp(medioa2, user:read) = true, want false")
+	}
+}
+
+func sorted(s []string) []string {
+	out := slices.Clone(s)
+	slices.Sort(out)
+	return out
 }
 
 func TestGenerateJWTFromClaimsRoundTrip(t *testing.T) {

@@ -17,19 +17,19 @@ var (
 	TokenIDKey            ContextKey = "token_id"
 	ClientIPKey           ContextKey = "client_ip"
 	UserAgentKey          ContextKey = "user_agent"
-	IsAdminKey            ContextKey = "is_admin"
 	PermsKey              ContextKey = "perms"
-	RolesKey              ContextKey = "roles"
 	DiContainerRequestKey ContextKey = "di_container_request"
 )
 
+// SetClaimsToFiberCtx is isme-internal: it populates the request ctx from a
+// freshly-validated session token. Downstream services use the kuery/auth
+// middleware instead, which resolves the per-app perms via GetPermsForApp.
+// The perms slice here means "perms for this app" and is set by the caller's
+// own middleware (e.g. isme uses GetPermsForApp("isme")).
 func SetClaimsToFiberCtx(ctx *fiber.Ctx, claims pkgClaims.Claims) {
 	ctx.Locals(string(UserIDKey), claims.GetUserID())
 	ctx.Locals(string(EmailKey), claims.GetEmail())
 	ctx.Locals(string(TokenIDKey), claims.GetTokenID())
-	ctx.Locals(string(PermsKey), claims.GetPerms())
-	ctx.Locals(string(RolesKey), claims.GetRoles())
-	ctx.Locals(string(IsAdminKey), claims.GetIsAdmin())
 }
 
 func SetUserIDToFiberCtx(ctx *fiber.Ctx, userID string) {
@@ -40,8 +40,13 @@ func SetUserEmailToFiberCtx(ctx *fiber.Ctx, email string) {
 	ctx.Locals(string(EmailKey), email)
 }
 
-func SetUserIsAdminToFiberCtx(ctx *fiber.Ctx, isAdmin bool) {
-	ctx.Locals(string(IsAdminKey), isAdmin)
+func SetTokenIDToFiberCtx(ctx *fiber.Ctx, tokenID string) {
+	ctx.Locals(string(TokenIDKey), tokenID)
+}
+
+// SetPermsToFiberCtx stores the caller's permission codes for the current app.
+func SetPermsToFiberCtx(ctx *fiber.Ctx, perms []string) {
+	ctx.Locals(string(PermsKey), perms)
 }
 
 func NewContextFromFiberCtx(fiberCtx *fiber.Ctx) context.Context {
@@ -50,9 +55,7 @@ func NewContextFromFiberCtx(fiberCtx *fiber.Ctx) context.Context {
 	tokenID := GetTokenIDFromFiberCtx(fiberCtx)
 	userAgent := GetUserAgentFromFiberCtx(fiberCtx)
 	clientIP := GetClientIPFromFiberCtx(fiberCtx)
-	isAdmin := GetUserIsAdminFromFiberCtx(fiberCtx)
 	perms := GetPermsFromFiberCtx(fiberCtx)
-	roles := GetRolesFromFiberCtx(fiberCtx)
 
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, UserIDKey, userID)
@@ -60,9 +63,7 @@ func NewContextFromFiberCtx(fiberCtx *fiber.Ctx) context.Context {
 	ctx = context.WithValue(ctx, TokenIDKey, tokenID)
 	ctx = context.WithValue(ctx, UserAgentKey, userAgent)
 	ctx = context.WithValue(ctx, ClientIPKey, clientIP)
-	ctx = context.WithValue(ctx, IsAdminKey, isAdmin)
 	ctx = context.WithValue(ctx, PermsKey, perms)
-	ctx = context.WithValue(ctx, RolesKey, roles)
 	return ctx
 }
 
@@ -118,17 +119,6 @@ func GetUserAgent(ctx context.Context) string {
 	return userAgent.(string)
 }
 
-func GetIsAdmin(ctx context.Context) bool {
-	isAdmin := ctx.Value(IsAdminKey)
-	if isAdmin == nil {
-		return false
-	}
-	if isAdmin, ok := isAdmin.(bool); ok {
-		return isAdmin
-	}
-	return false
-}
-
 func GetPerms(ctx context.Context) []string {
 	perms := ctx.Value(PermsKey)
 	if perms == nil {
@@ -136,17 +126,6 @@ func GetPerms(ctx context.Context) []string {
 	}
 	if perms, ok := perms.([]string); ok {
 		return perms
-	}
-	return nil
-}
-
-func GetRoles(ctx context.Context) []string {
-	roles := ctx.Value(RolesKey)
-	if roles == nil {
-		return nil
-	}
-	if roles, ok := roles.([]string); ok {
-		return roles
 	}
 	return nil
 }
@@ -183,17 +162,6 @@ func GetClientIPFromFiberCtx(ctx *fiber.Ctx) string {
 	return ctx.IP()
 }
 
-func GetUserIsAdminFromFiberCtx(ctx *fiber.Ctx) bool {
-	val := ctx.Locals(string(IsAdminKey))
-	if val == nil {
-		return false
-	}
-	if isAdmin, ok := val.(bool); ok {
-		return isAdmin
-	}
-	return false
-}
-
 func GetPermsFromFiberCtx(ctx *fiber.Ctx) []string {
 	val := ctx.Locals(string(PermsKey))
 	if val == nil {
@@ -201,17 +169,6 @@ func GetPermsFromFiberCtx(ctx *fiber.Ctx) []string {
 	}
 	if perms, ok := val.([]string); ok {
 		return perms
-	}
-	return nil
-}
-
-func GetRolesFromFiberCtx(ctx *fiber.Ctx) []string {
-	val := ctx.Locals(string(RolesKey))
-	if val == nil {
-		return nil
-	}
-	if roles, ok := val.([]string); ok {
-		return roles
 	}
 	return nil
 }

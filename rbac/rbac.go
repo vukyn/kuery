@@ -15,13 +15,10 @@ func Perm(resource, action string) string {
 }
 
 // RequirePermission returns a Fiber middleware that allows the request
-// only when the caller holds the given permission. Admins always pass.
-// Must run after the service's auth middleware has populated the claims.
+// only when the caller holds the given permission.
+// Must run after the service's auth middleware has populated the perms.
 func RequirePermission(perm string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		if pkgCtx.GetUserIsAdminFromFiberCtx(c) {
-			return c.Next()
-		}
 		if slices.Contains(pkgCtx.GetPermsFromFiberCtx(c), perm) {
 			return c.Next()
 		}
@@ -30,13 +27,10 @@ func RequirePermission(perm string) fiber.Handler {
 }
 
 // RequireAnyPermission returns a Fiber middleware that allows the request
-// when the caller holds at least one of the given permissions. Admins always pass.
-// Must run after the service's auth middleware has populated the claims.
+// when the caller holds at least one of the given permissions.
+// Must run after the service's auth middleware has populated the perms.
 func RequireAnyPermission(perms ...string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		if pkgCtx.GetUserIsAdminFromFiberCtx(c) {
-			return c.Next()
-		}
 		callerPerms := pkgCtx.GetPermsFromFiberCtx(c)
 		for _, perm := range perms {
 			if slices.Contains(callerPerms, perm) {
