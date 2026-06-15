@@ -12,9 +12,13 @@ type Pagination struct {
 	SortBy    string `json:"sort_by" query:"sort_by"`
 	SortOrder string `json:"sort_order" query:"sort_order"`
 	CountOnly bool   `json:"count_only" query:"count_only"`
+	// Count, when set by the client (query `count=true`), asks the list endpoint
+	// to also compute the total record count (an extra COUNT query). When false,
+	// repositories skip the count to avoid the cost and leave Total at 0.
+	Count bool `json:"count" query:"count"`
 	// Total is the total number of matching records across all pages, set by the
-	// repository/usecase on a list response so clients can compute page counts.
-	// It is response-only — ignored as a query parameter.
+	// repository/usecase on a list response (only when Count is requested) so
+	// clients can compute page counts. Response-only — ignored as a query param.
 	Total int `json:"total" query:"-"`
 	// GetAll    bool   `json:"get_all" query:"get_all"`
 }
