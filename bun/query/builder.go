@@ -16,7 +16,12 @@ func SelectWithPagination(query *bun.SelectQuery, paging pkgBase.Pagination, def
 			query = query.Order(paging.SortBy + " DESC")
 		}
 	} else {
-		query = query.Order(defaultSort)
+		// defaultSort is a developer-supplied raw ORDER BY expression (may span
+		// multiple columns / expressions like "position IS NULL, position ASC,
+		// created_at DESC"). Use OrderExpr so bun does NOT parse it as a single
+		// "column direction" pair — Order() would reject expression parts with
+		// an slog "unsupported sort direction" warning and drop the sort.
+		query = query.OrderExpr(defaultSort)
 	}
 
 	if paging.GetLimit() > 0 {
