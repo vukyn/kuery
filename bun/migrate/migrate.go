@@ -21,10 +21,15 @@ import (
 var ErrNoMigrationsToRollback = errors.New("no migrations to rollback")
 
 // Migration represents a single database migration with its up/down steps.
+//
+// Up and Down receive a bun.IDB — the interface satisfied by both *bun.DB and
+// bun.Tx — so the runner can thread its per-migration transaction handle into
+// the steps. Each migration runs inside a transaction: the schema change and
+// its bookkeeping row commit or roll back together atomically.
 type Migration struct {
 	Name string
-	Up   func(*bun.DB) error
-	Down func(*bun.DB) error
+	Up   func(bun.IDB) error
+	Down func(bun.IDB) error
 }
 
 // Stats holds statistics about a migration run.
@@ -41,7 +46,10 @@ type History struct {
 	ExecutedAt    time.Time `bun:"executed_at,notnull"`
 }
 
-// Run executes all pending migrations against the given database.
+// Run executes all pending migrations against the given database. Each pending
+// migration runs inside its own transaction: the migration's Up step and the
+// bookkeeping row that records it commit together, or roll back together on
+// failure — so a failed migration never leaves partial schema state.
 func Run(db *bun.DB, migrations []Migration) (Stats, error) {
 	stats := Stats{}
 
@@ -84,19 +92,19 @@ func Run(db *bun.DB, migrations []Migration) (Stats, error) {
 				return stats, fmt.Errorf("failed to begin transaction for migration %s: %w", migration.Name, err)
 			}
 
-			// Execute migration
-			if err := migration.Up(db); err != nil {
+			// Execute migration inside the transaction
+			if err := migration.Up(tx); err != nil {
 				_ = tx.Rollback()
 				return stats, fmt.Errorf("failed to execute migration %s: %w", migration.Name, err)
 			}
 
-			// Record migration as executed
+			// Record migration as executed (within the same transaction)
 			migrationRecord := &History{
 				ID:         lastMigratedID + 1,
 				Name:       migration.Name,
 				ExecutedAt: time.Now(),
 			}
-			if _, err := db.NewInsert().Model(migrationRecord).Exec(ctx); err != nil {
+			if _, err := tx.NewInsert().Model(migrationRecord).Exec(ctx); err != nil {
 				_ = tx.Rollback()
 				return stats, fmt.Errorf("failed to record migration %s: %w", migration.Name, err)
 			}
@@ -120,6 +128,10 @@ func Run(db *bun.DB, migrations []Migration) (Stats, error) {
 
 // RollbackLast rolls back the last executed migration. It returns true if a
 // migration was rolled back, or ErrNoMigrationsToRollback when none remain.
+//
+// The rollback runs inside a transaction: the migration's Down step and the
+// removal of its bookkeeping row commit together, or roll back together on
+// failure — so a failed rollback never leaves partial schema state.
 func RollbackLast(db *bun.DB, migrations []Migration) (bool, error) {
 	// Get last executed migration
 	ctx := context.Background()
@@ -150,14 +162,14 @@ func RollbackLast(db *bun.DB, migrations []Migration) (bool, error) {
 		return false, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
-	// Execute rollback
-	if err := migration.Down(db); err != nil {
+	// Execute rollback inside the transaction
+	if err := migration.Down(tx); err != nil {
 		_ = tx.Rollback()
 		return false, fmt.Errorf("failed to rollback migration %s: %w", migration.Name, err)
 	}
 
-	// Remove migration record
-	if _, err := db.NewDelete().Model(&History{}).Where("name = ?", migration.Name).Exec(ctx); err != nil {
+	// Remove migration record (within the same transaction)
+	if _, err := tx.NewDelete().Model(&History{}).Where("name = ?", migration.Name).Exec(ctx); err != nil {
 		_ = tx.Rollback()
 		return false, fmt.Errorf("failed to remove migration record: %w", err)
 	}
