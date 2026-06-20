@@ -26,9 +26,6 @@ type UploadInput struct {
 	// Path is the virtual destination folder (≤3 levels; sent as the path
 	// field on single-shot upload and on chunked commit).
 	Path string
-	// Visibility controls who can access the uploaded object. Must be "public"
-	// or "private". Required — no default is applied by the SDK.
-	Visibility string
 }
 
 // UploadResult is the decoded data of a successful single-shot upload or
@@ -59,9 +56,6 @@ func (c *Client) Upload(ctx context.Context, in UploadInput) (*UploadResult, err
 	if in.File == nil {
 		return nil, errors.New("medioa: UploadInput.File is required")
 	}
-	if in.Visibility == "" {
-		return nil, errors.New("medioa: UploadInput.Visibility is required (\"public\" or \"private\")")
-	}
 
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
@@ -74,10 +68,9 @@ func (c *Client) Upload(ctx context.Context, in UploadInput) (*UploadResult, err
 		return nil, err
 	}
 	if err := writeOptionalFields(writer, map[string]string{
-		"file_name":  in.FileName,
-		"ext":        in.Ext,
-		"path":       in.Path,
-		"visibility": in.Visibility,
+		"file_name": in.FileName,
+		"ext":       in.Ext,
+		"path":      in.Path,
 	}); err != nil {
 		return nil, err
 	}
@@ -105,9 +98,6 @@ func (c *Client) Upload(ctx context.Context, in UploadInput) (*UploadResult, err
 func (c *Client) UploadChunked(ctx context.Context, in UploadInput, chunkSize int) (*UploadResult, error) {
 	if in.File == nil {
 		return nil, errors.New("medioa: UploadInput.File is required")
-	}
-	if in.Visibility == "" {
-		return nil, errors.New("medioa: UploadInput.Visibility is required (\"public\" or \"private\")")
 	}
 	if chunkSize <= 0 {
 		chunkSize = defaultChunkSize
@@ -143,7 +133,7 @@ func (c *Client) UploadChunked(ctx context.Context, in UploadInput, chunkSize in
 		return nil, errors.New("medioa: no data staged for chunked upload")
 	}
 
-	return c.commitChunk(ctx, fileID, in.Path, in.Visibility)
+	return c.commitChunk(ctx, fileID, in.Path)
 }
 
 // stageChunk POSTs one chunk to /upload/stage. fileID is empty on the first
@@ -178,7 +168,7 @@ func (c *Client) stageChunk(ctx context.Context, in UploadInput, fileID string, 
 }
 
 // commitChunk POSTs to /upload/commit to finalize a chunked upload.
-func (c *Client) commitChunk(ctx context.Context, fileID, path, visibility string) (*UploadResult, error) {
+func (c *Client) commitChunk(ctx context.Context, fileID, path string) (*UploadResult, error) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 
@@ -186,8 +176,7 @@ func (c *Client) commitChunk(ctx context.Context, fileID, path, visibility strin
 		return nil, err
 	}
 	if err := writeOptionalFields(writer, map[string]string{
-		"path":       path,
-		"visibility": visibility,
+		"path": path,
 	}); err != nil {
 		return nil, err
 	}
