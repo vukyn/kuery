@@ -11,7 +11,18 @@
 // The package imports only the standard library so kuery stays light and the
 // SDK remains the single source of truth for the contract — no medioa2-server
 // types leak in. Consumers (e.g. rainy) construct a Client with New and call
-// Upload / UploadChunked, or build a read URL with PublicURL.
+// Upload / UploadPrivate / UploadChunked, delete with Delete, or build a read
+// URL with PublicURL.
+//
+// Visibility: Upload (and UploadChunked) store public objects whose URL
+// resolves through the anonymous token-read endpoint. UploadPrivate forces
+// private visibility — its returned URL is NOT resolvable via public token
+// read (a private object responds 404 there by design); reading it back needs
+// a human JWT session. UploadPrivate is single-shot only; chunked private
+// upload (for files >100MB) is a future addition.
+//
+// Delete is owner-scoped: it removes an object only when the key owner is its
+// creator, otherwise the server responds 404 (ErrNotFound).
 //
 // Server-to-server callers should set Config.BaseURL to a 127.0.0.1:<port>
 // address rather than a *.local hostname: Go's resolver tries mDNS first for

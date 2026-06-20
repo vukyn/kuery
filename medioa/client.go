@@ -21,10 +21,12 @@ const (
 
 	// Route fragments — mirror medioa2's constants. The public groups mount
 	// under /api/v1.
-	pathUpload       = "/api/v1/public/storage/upload"
-	pathUploadStage  = "/api/v1/public/storage/upload/stage"
-	pathUploadCommit = "/api/v1/public/storage/upload/commit"
-	pathPublicObject = "/api/v1/public/objects/"
+	pathUpload        = "/api/v1/public/storage/upload"
+	pathUploadPrivate = "/api/v1/public/storage/upload/private"
+	pathUploadStage   = "/api/v1/public/storage/upload/stage"
+	pathUploadCommit  = "/api/v1/public/storage/upload/commit"
+	pathDeleteObject  = "/api/v1/public/storage/"
+	pathPublicObject  = "/api/v1/public/objects/"
 )
 
 // Config configures a Client. BaseURL and APIKey are required.
@@ -102,6 +104,24 @@ func (c *Client) doMultipart(ctx context.Context, path, contentType string, body
 		return fmt.Errorf("medioa: build request: %w", err)
 	}
 	req.Header.Set("Content-Type", contentType)
+
+	return c.do(req, out)
+}
+
+// doDelete sends a bodyless DELETE to path, attaches the API key, and decodes
+// the enveloped data into out (pass nil to ignore the body). Non-2xx responses
+// are mapped to the typed errors.
+func (c *Client) doDelete(ctx context.Context, path string, out any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+path, nil)
+	if err != nil {
+		return fmt.Errorf("medioa: build request: %w", err)
+	}
+
+	return c.do(req, out)
+}
+
+// do attaches the API key, executes the request, and decodes the response.
+func (c *Client) do(req *http.Request, out any) error {
 	req.Header.Set(apiKeyHeader, c.apiKey)
 
 	resp, err := c.httpClient.Do(req)

@@ -121,6 +121,116 @@ func TestUploadSuccess(t *testing.T) {
 	}
 }
 
+func TestUploadPrivate(t *testing.T) {
+	want := UploadResult{
+		FileID:   "f1",
+		Token:    "t1",
+		URL:      "http://127.0.0.1:8082/api/v1/public/objects/t1",
+		FileName: "secret.txt",
+		FileSize: 6,
+		Ext:      "txt",
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != pathUploadPrivate {
+			t.Errorf("path = %q, want %q", r.URL.Path, pathUploadPrivate)
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %q, want POST", r.Method)
+		}
+		if got := r.Header.Get(apiKeyHeader); got != "mk_test" {
+			t.Errorf("X-API-Key = %q, want mk_test", got)
+		}
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Errorf("ParseMultipartForm: %v", err)
+		}
+		f, hdr, err := r.FormFile("file")
+		if err != nil {
+			t.Errorf("FormFile: %v", err)
+		} else {
+			defer f.Close()
+			body, _ := io.ReadAll(f)
+			if string(body) != "secret" {
+				t.Errorf("file body = %q, want secret", body)
+			}
+			if hdr.Filename != "secret.txt" {
+				t.Errorf("filename = %q", hdr.Filename)
+			}
+		}
+		okEnvelope(w, want)
+	}))
+	defer srv.Close()
+
+	c := newClient(t, srv.URL)
+	got, err := c.UploadPrivate(context.Background(), UploadInput{
+		File:     strings.NewReader("secret"),
+		FileName: "secret.txt",
+		Ext:      "txt",
+	})
+	if err != nil {
+		t.Fatalf("UploadPrivate: %v", err)
+	}
+	if *got != want {
+		t.Fatalf("result = %+v, want %+v", *got, want)
+	}
+}
+
+func TestDelete(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Errorf("method = %q, want DELETE", r.Method)
+		}
+		if want := pathDeleteObject + "file-123"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
+		}
+		if got := r.Header.Get(apiKeyHeader); got != "mk_test" {
+			t.Errorf("X-API-Key = %q, want mk_test", got)
+		}
+		okEnvelope(w, map[string]any{"deleted": true})
+	}))
+	defer srv.Close()
+
+	c := newClient(t, srv.URL)
+	if err := c.Delete(context.Background(), "file-123"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+}
+
+func TestDeleteNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]any{"code": http.StatusNotFound, "message": "not found"})
+	}))
+	defer srv.Close()
+
+	c := newClient(t, srv.URL)
+	err := c.Delete(context.Background(), "missing")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("errors.Is(%v, ErrNotFound) = false", err)
+	}
+}
+
+func TestDeleteEmptyID(t *testing.T) {
+	called := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		okEnvelope(w, map[string]any{})
+	}))
+	defer srv.Close()
+
+	c := newClient(t, srv.URL)
+	if err := c.Delete(context.Background(), ""); err == nil {
+		t.Fatal("expected error for empty fileID")
+	}
+	if called {
+		t.Fatal("server should not be called for empty fileID")
+	}
+}
+
 func TestUploadContentType(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseMultipartForm(1 << 20); err != nil {

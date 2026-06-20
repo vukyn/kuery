@@ -53,6 +53,24 @@ type uploadChunkResult struct {
 // carries a known Content-Length. For very large files prefer UploadChunked,
 // which streams a bounded buffer per chunk.
 func (c *Client) Upload(ctx context.Context, in UploadInput) (*UploadResult, error) {
+	return c.uploadTo(ctx, pathUpload, in)
+}
+
+// UploadPrivate performs a single-shot multipart upload to
+// /api/v1/public/storage/upload/private, which forces the stored object to
+// private visibility. It is single-shot only (no chunked private upload yet).
+//
+// The returned URL cannot be resolved through the anonymous public token-read
+// endpoint: a private object responds 404 there by design. Reading it back
+// requires a human JWT session.
+func (c *Client) UploadPrivate(ctx context.Context, in UploadInput) (*UploadResult, error) {
+	return c.uploadTo(ctx, pathUploadPrivate, in)
+}
+
+// uploadTo buffers the file part plus the optional fields and POSTs the
+// multipart body to path. Shared by Upload and UploadPrivate, which differ only
+// in the target path (public vs forced-private visibility).
+func (c *Client) uploadTo(ctx context.Context, path string, in UploadInput) (*UploadResult, error) {
 	if in.File == nil {
 		return nil, errors.New("medioa: UploadInput.File is required")
 	}
@@ -79,10 +97,21 @@ func (c *Client) Upload(ctx context.Context, in UploadInput) (*UploadResult, err
 	}
 
 	var result UploadResult
-	if err := c.doMultipart(ctx, pathUpload, writer.FormDataContentType(), &buf, &result); err != nil {
+	if err := c.doMultipart(ctx, path, writer.FormDataContentType(), &buf, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
+}
+
+// Delete removes an uploaded object by its file id via
+// DELETE /api/v1/public/storage/{fileID}. The delete is owner-scoped: the key
+// owner must be the object's creator, otherwise the server responds 404
+// (mapped to ErrNotFound).
+func (c *Client) Delete(ctx context.Context, fileID string) error {
+	if fileID == "" {
+		return errors.New("medioa: fileID is required")
+	}
+	return c.doDelete(ctx, pathDeleteObject+fileID, nil)
 }
 
 // UploadChunked streams in.File in chunks of chunkSize bytes: it stages the
