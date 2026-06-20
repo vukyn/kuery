@@ -108,10 +108,11 @@ func TestUploadSuccess(t *testing.T) {
 
 	c := newClient(t, srv.URL)
 	got, err := c.Upload(context.Background(), UploadInput{
-		File:     strings.NewReader("hello"),
-		FileName: "hello.txt",
-		Ext:      "txt",
-		Path:     "docs/sub",
+		File:       strings.NewReader("hello"),
+		FileName:   "hello.txt",
+		Ext:        "txt",
+		Path:       "docs/sub",
+		Visibility: "public",
 	})
 	if err != nil {
 		t.Fatalf("Upload: %v", err)
@@ -142,6 +143,7 @@ func TestUploadContentType(t *testing.T) {
 		File:        strings.NewReader("x"),
 		FileName:    "a.png",
 		ContentType: "image/png",
+		Visibility:  "public",
 	}); err != nil {
 		t.Fatalf("Upload: %v", err)
 	}
@@ -179,7 +181,7 @@ func TestErrorMapping(t *testing.T) {
 
 			c := newClient(t, srv.URL)
 			_, err := c.Upload(context.Background(), UploadInput{
-				File: strings.NewReader("x"), FileName: "f",
+				File: strings.NewReader("x"), FileName: "f", Visibility: "public",
 			})
 			if err == nil {
 				t.Fatal("expected error")
@@ -212,7 +214,7 @@ func TestGeneralAPIError(t *testing.T) {
 	defer srv.Close()
 
 	c := newClient(t, srv.URL)
-	_, err := c.Upload(context.Background(), UploadInput{File: strings.NewReader("x"), FileName: "f"})
+	_, err := c.Upload(context.Background(), UploadInput{File: strings.NewReader("x"), FileName: "f", Visibility: "public"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -285,9 +287,10 @@ func TestUploadChunkedFlow(t *testing.T) {
 
 	c := newClient(t, srv.URL)
 	res, err := c.UploadChunked(context.Background(), UploadInput{
-		File:     strings.NewReader(content),
-		FileName: "blob",
-		Path:     "media/clips",
+		File:       strings.NewReader(content),
+		FileName:   "blob",
+		Path:       "media/clips",
+		Visibility: "public",
 	}, chunkSize)
 	if err != nil {
 		t.Fatalf("UploadChunked: %v", err)
@@ -354,7 +357,7 @@ func TestUploadChunkedExactBoundary(t *testing.T) {
 
 	c := newClient(t, srv.URL)
 	if _, err := c.UploadChunked(context.Background(), UploadInput{
-		File: strings.NewReader(content), FileName: "x",
+		File: strings.NewReader(content), FileName: "x", Visibility: "public",
 	}, chunkSize); err != nil {
 		t.Fatalf("UploadChunked: %v", err)
 	}
@@ -383,7 +386,7 @@ func TestUploadChunkedDefaultChunkSize(t *testing.T) {
 
 	c := newClient(t, srv.URL)
 	if _, err := c.UploadChunked(context.Background(), UploadInput{
-		File: strings.NewReader("tiny"), FileName: "x",
+		File: strings.NewReader("tiny"), FileName: "x", Visibility: "public",
 	}, 0); err != nil {
 		t.Fatalf("UploadChunked: %v", err)
 	}
