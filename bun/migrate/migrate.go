@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect"
 )
 
 // ErrNoMigrationsToRollback is returned by RollbackLast when there are no
@@ -53,15 +54,34 @@ type History struct {
 func Run(db *bun.DB, migrations []Migration) (Stats, error) {
 	stats := Stats{}
 
-	// Create migrations table if it doesn't exist
-	_, err := db.Exec(`
+	// Create migrations table if it doesn't exist. The bookkeeping DDL is
+	// dialect-aware: the runner supplies both `id` (lastMigratedID+1) and
+	// `executed_at` (time.Now()) explicitly in its History inserts, so neither
+	// column needs server-side auto-generation — Postgres uses a plain BIGINT PK
+	// rather than serial/identity. The SQLite branch is kept byte-for-byte
+	// identical to the original DDL to pose zero risk to existing databases.
+	var createTableSQL string
+	switch db.Dialect().Name() {
+	case dialect.PG:
+		createTableSQL = `
+		CREATE TABLE IF NOT EXISTS migrations (
+			id BIGINT PRIMARY KEY,
+			name TEXT UNIQUE NOT NULL,
+			executed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+		)
+	`
+	case dialect.SQLite:
+		createTableSQL = `
 		CREATE TABLE IF NOT EXISTS migrations (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT UNIQUE NOT NULL,
 			executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)
-	`)
-	if err != nil {
+	`
+	default:
+		return stats, fmt.Errorf("unsupported dialect for migrations table: %s", db.Dialect().Name())
+	}
+	if _, err := db.Exec(createTableSQL); err != nil {
 		return stats, fmt.Errorf("failed to create migrations table: %w", err)
 	}
 
