@@ -5,11 +5,24 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
+	"strings"
 
 	pkgClaims "github.com/vukyn/kuery/claims"
 
 	"github.com/golang-jwt/jwt/v5"
 )
+
+// normalizePEM converts literal "\n" escape sequences into real newlines so a
+// PEM stored as a single-line env var / secret (e.g. a fly.io secret, which
+// does not expand backslash escapes the way godotenv does) still parses. A
+// well-formed PEM never contains a backslash, so this is a no-op otherwise.
+func normalizePEM(key string) string {
+	if strings.Contains(key, "\\n") {
+		return strings.ReplaceAll(key, "\\n", "\n")
+	}
+	return key
+}
 
 // GenerateJWT generates a JWT token using HMAC (HS256)
 func GenerateJWT(secretKey string, expireIn int, userID, email string) (string, pkgClaims.Claims, error) {
@@ -48,7 +61,7 @@ func ValidateJWT(tokenString, secretKey string) (pkgClaims.Claims, error) {
 
 // parseRSAPrivateKey parses RSA private key from PEM string
 func parseRSAPrivateKey(privateKeyPEM string) (*rsa.PrivateKey, error) {
-	block, _ := pem.Decode([]byte(privateKeyPEM))
+	block, _ := pem.Decode([]byte(normalizePEM(privateKeyPEM)))
 	if block == nil {
 		return nil, errors.New("failed to parse PEM block containing private key")
 	}
@@ -58,7 +71,7 @@ func parseRSAPrivateKey(privateKeyPEM string) (*rsa.PrivateKey, error) {
 		// Try PKCS8 format
 		key, err2 := x509.ParsePKCS8PrivateKey(block.Bytes)
 		if err2 != nil {
-			return nil, errors.New("failed to parse private key: " + err.Error())
+			return nil, fmt.Errorf("failed to parse private key (PKCS1: %v; PKCS8: %v)", err, err2)
 		}
 		rsaKey, ok := key.(*rsa.PrivateKey)
 		if !ok {
@@ -72,7 +85,7 @@ func parseRSAPrivateKey(privateKeyPEM string) (*rsa.PrivateKey, error) {
 
 // parseRSAPublicKey parses RSA public key from PEM string
 func parseRSAPublicKey(publicKeyPEM string) (*rsa.PublicKey, error) {
-	block, _ := pem.Decode([]byte(publicKeyPEM))
+	block, _ := pem.Decode([]byte(normalizePEM(publicKeyPEM)))
 	if block == nil {
 		return nil, errors.New("failed to parse PEM block containing public key")
 	}
@@ -82,7 +95,7 @@ func parseRSAPublicKey(publicKeyPEM string) (*rsa.PublicKey, error) {
 		// Try PKCS1 format
 		pub, err2 := x509.ParsePKCS1PublicKey(block.Bytes)
 		if err2 != nil {
-			return nil, errors.New("failed to parse public key: " + err.Error())
+			return nil, fmt.Errorf("failed to parse public key (PKIX: %v; PKCS1: %v)", err, err2)
 		}
 		return pub, nil
 	}
