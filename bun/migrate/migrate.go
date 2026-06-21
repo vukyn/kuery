@@ -92,10 +92,17 @@ func Run(db *bun.DB, migrations []Migration) (Stats, error) {
 		return stats, fmt.Errorf("failed to get executed migrations: %w", err)
 	}
 
-	// Execute pending migrations
+	// Execute pending migrations. The next id is max(existing id) + 1 — computed
+	// over all rows rather than the last scanned one, because the SELECT above has
+	// no ORDER BY and Postgres does not guarantee row order, so the last element is
+	// not necessarily the highest id. Getting this wrong collides on the migrations
+	// primary key (e.g. the first incremental migration run after a baseline that
+	// stamped ids 1..N).
 	lastMigratedID := int64(0)
-	if len(executedMigrations) > 0 {
-		lastMigratedID = executedMigrations[len(executedMigrations)-1].ID
+	for _, executed := range executedMigrations {
+		if executed.ID > lastMigratedID {
+			lastMigratedID = executed.ID
+		}
 	}
 	for _, migration := range migrations {
 		// Check if migration already executed
