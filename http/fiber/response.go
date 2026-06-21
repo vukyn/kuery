@@ -21,9 +21,18 @@ func OK(c *fiber.Ctx, data any) error {
 func Err(c *fiber.Ctx, err error) error {
 	switch err := err.(type) {
 	case pkgErr.Error:
-		switch err.Status() {
-		case http.StatusUnauthorized:
+		switch {
+		case err.Status() == http.StatusUnauthorized:
 			return Unauthorized(c)
+		case err.Status() >= http.StatusInternalServerError:
+			// 5xx carries internal detail (DB driver errors, stack/parse details).
+			// Log the real message server-side but return a generic body so
+			// internals never leak to the client.
+			log.Printf("[http] %d %s %s: %v", err.Status(), c.Method(), c.OriginalURL(), err.Error())
+			return c.Status(err.Status()).JSON(pkgBase.Response{
+				Code:    err.Status(),
+				Message: "internal server error",
+			})
 		default:
 			return c.Status(err.Status()).JSON(pkgBase.Response{
 				Code:    err.Status(),
