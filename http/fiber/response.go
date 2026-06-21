@@ -1,6 +1,7 @@
 package http
 
 import (
+	"log"
 	"net/http"
 
 	pkgBase "github.com/vukyn/kuery/http/base"
@@ -30,9 +31,13 @@ func Err(c *fiber.Ctx, err error) error {
 			})
 		}
 	default:
+		// Unexpected/internal error: log the real detail server-side (visible in
+		// the service logs) but return a generic message so internals — parse
+		// errors, stack details, secrets — never leak to the client.
+		log.Printf("[http] 500 %s %s: %v", c.Method(), c.OriginalURL(), err)
 		return c.Status(http.StatusInternalServerError).JSON(pkgBase.Response{
 			Code:    http.StatusInternalServerError,
-			Message: err.Error(),
+			Message: "internal server error",
 		})
 	}
 }
