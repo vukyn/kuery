@@ -1,2 +1,5 @@
 coverage/*
 .DS_Store
+
+# code-review-graph cache (local knowledge graph)
+.code-review-graph/
