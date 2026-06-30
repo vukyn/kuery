@@ -1,11 +1,11 @@
 package http
 
 import (
-	"log"
 	"net/http"
 
 	pkgBase "github.com/vukyn/kuery/http/base"
 	pkgErr "github.com/vukyn/kuery/http/errors"
+	pkgLog "github.com/vukyn/kuery/log"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -28,7 +28,7 @@ func Err(c *fiber.Ctx, err error) error {
 			// 5xx carries internal detail (DB driver errors, stack/parse details).
 			// Log the real message server-side but return a generic body so
 			// internals never leak to the client.
-			log.Printf("[http] %d %s %s: %v", err.Status(), c.Method(), c.OriginalURL(), err.Error())
+			pkgLog.New().WithPkg("http").Errorf("%d %s %s: %v", err.Status(), c.Method(), c.OriginalURL(), err.Error())
 			return c.Status(err.Status()).JSON(pkgBase.Response{
 				Code:    err.Status(),
 				Message: "internal server error",
@@ -43,7 +43,7 @@ func Err(c *fiber.Ctx, err error) error {
 		// Unexpected/internal error: log the real detail server-side (visible in
 		// the service logs) but return a generic message so internals — parse
 		// errors, stack details, secrets — never leak to the client.
-		log.Printf("[http] 500 %s %s: %v", c.Method(), c.OriginalURL(), err)
+		pkgLog.New().WithPkg("http").Errorf("500 %s %s: %v", c.Method(), c.OriginalURL(), err)
 		return c.Status(http.StatusInternalServerError).JSON(pkgBase.Response{
 			Code:    http.StatusInternalServerError,
 			Message: "internal server error",
