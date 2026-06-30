@@ -26,14 +26,23 @@ type UploadInput struct {
 	// Path is the virtual destination folder (≤3 levels; sent as the path
 	// field on single-shot upload and on chunked commit).
 	Path string
+	// IncludeRawKey opts in to having the server return the raw R2 object key
+	// (UploadResult.RawKey), sent as the include_raw_key field. The server only
+	// honors it for public-visibility uploads; a private upload returns an empty
+	// raw key. Default false.
+	IncludeRawKey bool
 }
 
 // UploadResult is the decoded data of a successful single-shot upload or
 // chunked commit.
 type UploadResult struct {
-	FileID   string `json:"file_id"`
-	Token    string `json:"token"`
-	URL      string `json:"url"`
+	FileID string `json:"file_id"`
+	Token  string `json:"token"`
+	URL    string `json:"url"`
+	// RawKey is the raw R2 object key, populated only when IncludeRawKey was set
+	// AND the upload was public-visibility; empty otherwise. Use it to build a
+	// direct public-CDN URL that bypasses the presign redirect.
+	RawKey   string `json:"raw_key"`
 	FileName string `json:"file_name"`
 	FileSize int64  `json:"file_size"`
 	Ext      string `json:"ext"`
@@ -85,11 +94,17 @@ func (c *Client) uploadTo(ctx context.Context, path string, in UploadInput) (*Up
 	if _, err := io.Copy(part, in.File); err != nil {
 		return nil, err
 	}
-	if err := writeOptionalFields(writer, map[string]string{
+	fields := map[string]string{
 		"file_name": in.FileName,
 		"ext":       in.Ext,
 		"path":      in.Path,
-	}); err != nil {
+	}
+	// Only sent when opted in; writeOptionalFields skips empty values, so the
+	// flag is included as "true" or omitted entirely (server defaults off).
+	if in.IncludeRawKey {
+		fields["include_raw_key"] = "true"
+	}
+	if err := writeOptionalFields(writer, fields); err != nil {
 		return nil, err
 	}
 	if err := writer.Close(); err != nil {
@@ -162,7 +177,7 @@ func (c *Client) UploadChunked(ctx context.Context, in UploadInput, chunkSize in
 		return nil, errors.New("medioa: no data staged for chunked upload")
 	}
 
-	return c.commitChunk(ctx, fileID, in.Path)
+	return c.commitChunk(ctx, fileID, in.Path, in.IncludeRawKey)
 }
 
 // stageChunk POSTs one chunk to /upload/stage. fileID is empty on the first
@@ -197,16 +212,21 @@ func (c *Client) stageChunk(ctx context.Context, in UploadInput, fileID string, 
 }
 
 // commitChunk POSTs to /upload/commit to finalize a chunked upload.
-func (c *Client) commitChunk(ctx context.Context, fileID, path string) (*UploadResult, error) {
+// includeRawKey opts in to the server returning the raw R2 object key.
+func (c *Client) commitChunk(ctx context.Context, fileID, path string, includeRawKey bool) (*UploadResult, error) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 
 	if err := writer.WriteField("file_id", fileID); err != nil {
 		return nil, err
 	}
-	if err := writeOptionalFields(writer, map[string]string{
+	fields := map[string]string{
 		"path": path,
-	}); err != nil {
+	}
+	if includeRawKey {
+		fields["include_raw_key"] = "true"
+	}
+	if err := writeOptionalFields(writer, fields); err != nil {
 		return nil, err
 	}
 	if err := writer.Close(); err != nil {
