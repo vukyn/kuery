@@ -72,6 +72,50 @@ func (t *Tracker) Count(group string) int {
 	return count
 }
 
+// HasAny reports whether ANY group currently has at least one live member.
+// Liveness is filtered at read time (last-seen after now-ttl), consistent with
+// Count. It short-circuits on the first live member found, so a caller can use it
+// as a cheap "is anyone here?" gate before doing more expensive per-group work.
+func (t *Tracker) HasAny() bool {
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+
+	cutoff := t.now().Add(-t.ttl)
+	for _, groupMembers := range t.members {
+		for _, lastSeen := range groupMembers {
+			if lastSeen.After(cutoff) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Counts returns the live-member count per group in a single pass, OMITTING any
+// group with zero live members (so the result only carries groups that currently
+// have someone present). Liveness is filtered at read time (last-seen after
+// now-ttl), consistent with Count. The returned map is a fresh copy the caller
+// may mutate freely.
+func (t *Tracker) Counts() map[string]int {
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+
+	cutoff := t.now().Add(-t.ttl)
+	counts := make(map[string]int)
+	for group, groupMembers := range t.members {
+		live := 0
+		for _, lastSeen := range groupMembers {
+			if lastSeen.After(cutoff) {
+				live++
+			}
+		}
+		if live > 0 {
+			counts[group] = live
+		}
+	}
+	return counts
+}
+
 // Members returns the live member ids in the group. The order is unspecified.
 func (t *Tracker) Members(group string) []string {
 	t.mutex.RLock()
