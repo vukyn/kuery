@@ -228,6 +228,91 @@ func TestStopHaltsSweep(t *testing.T) {
 	}
 }
 
+func TestHasAnyAndCounts(t *testing.T) {
+	clock := newFakeClock()
+	tracker := newTestTracker(clock, 30*time.Second)
+	defer tracker.Stop()
+
+	if tracker.HasAny() {
+		t.Fatal("HasAny should be false on an empty tracker")
+	}
+	if got := tracker.Counts(); len(got) != 0 {
+		t.Fatalf("Counts should be empty on an empty tracker, got %v", got)
+	}
+
+	tracker.Touch("station-1", "session-a")
+	tracker.Touch("station-1", "session-b")
+	tracker.Touch("station-2", "session-c")
+
+	if !tracker.HasAny() {
+		t.Fatal("HasAny should be true with live members present")
+	}
+
+	counts := tracker.Counts()
+	if len(counts) != 2 {
+		t.Fatalf("Counts should carry exactly 2 groups, got %v", counts)
+	}
+	if counts["station-1"] != 2 {
+		t.Fatalf("station-1 Counts = %d, want 2", counts["station-1"])
+	}
+	if counts["station-2"] != 1 {
+		t.Fatalf("station-2 Counts = %d, want 1", counts["station-2"])
+	}
+	// Counts must agree with the existing per-group Count read path.
+	if counts["station-1"] != tracker.Count("station-1") {
+		t.Fatalf("Counts[station-1]=%d disagrees with Count=%d", counts["station-1"], tracker.Count("station-1"))
+	}
+}
+
+func TestHasAnyFalseAfterTTLExpiry(t *testing.T) {
+	clock := newFakeClock()
+	ttl := 30 * time.Second
+	tracker := newTestTracker(clock, ttl)
+	defer tracker.Stop()
+
+	tracker.Touch("station-1", "session-a")
+	if !tracker.HasAny() {
+		t.Fatal("expected live immediately after Touch")
+	}
+
+	// Advance past the TTL; the read-time filter must drop the member from every
+	// accessor without a sweep.
+	clock.Advance(ttl + time.Second)
+	if tracker.HasAny() {
+		t.Fatal("HasAny should be false once every member has expired")
+	}
+	if got := tracker.Counts(); len(got) != 0 {
+		t.Fatalf("Counts should be empty once every member has expired, got %v", got)
+	}
+}
+
+func TestCountsOmitsEmptyGroups(t *testing.T) {
+	clock := newFakeClock()
+	ttl := 30 * time.Second
+	tracker := newTestTracker(clock, ttl)
+	defer tracker.Stop()
+
+	// "stale" is seen at t0; "fresh" is seen 20s later.
+	tracker.Touch("stale", "session-a")
+	clock.Advance(20 * time.Second)
+	tracker.Touch("fresh", "session-b")
+
+	// Advance so "stale" (seen at t0) is 31s old → expired, while "fresh" (seen at
+	// t0+20s) is only 11s old → still live.
+	clock.Advance(11 * time.Second)
+
+	counts := tracker.Counts()
+	if _, ok := counts["stale"]; ok {
+		t.Fatalf("expired group must be omitted from Counts, got %v", counts)
+	}
+	if counts["fresh"] != 1 {
+		t.Fatalf("fresh group Counts = %d, want 1", counts["fresh"])
+	}
+	if !tracker.HasAny() {
+		t.Fatal("HasAny should stay true while the fresh member is live")
+	}
+}
+
 func TestConcurrentTouch(t *testing.T) {
 	clock := newFakeClock()
 	tracker := newTestTracker(clock, time.Hour)
