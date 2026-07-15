@@ -26,7 +26,7 @@ func WriteFile(data []byte, filePath string) error {
 			return err
 		}
 	}
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
+	if err := os.WriteFile(filePath, data, 0600); err != nil {
 		return err
 	}
 	return nil
@@ -95,7 +95,7 @@ func AppendFile(data []byte, filePath string, mode int) error {
 	if _, err := os.Stat(dir); err == nil {
 		switch mode {
 		case 0:
-			f, err := os.OpenFile(filePath, os.O_RDWR, 0644)
+			f, err := os.OpenFile(filePath, os.O_RDWR, 0600)
 			if err != nil {
 				return err
 			}
@@ -109,7 +109,7 @@ func AppendFile(data []byte, filePath string, mode int) error {
 				return err
 			}
 		case 1:
-			f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0644)
+			f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0600)
 			if err != nil {
 				return err
 			}
@@ -124,7 +124,7 @@ func AppendFile(data []byte, filePath string, mode int) error {
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
+	if err := os.WriteFile(filePath, data, 0600); err != nil {
 		return err
 	}
 	return nil
