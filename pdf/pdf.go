@@ -170,13 +170,13 @@ func (d *Document) Table(headers []string, rows [][]string, aligns ...align.Type
 // trailing column. Empty is a no-op.
 func (d *Document) Summary(pairs ...[2]string) {
 	for _, p := range pairs {
-		// Label gets a wide column (6/12) so multi-word labels like "Số nhật ký
-		// chăm sóc" stay on one line; value takes the trailing 4/12, both
-		// right-aligned toward the page edge.
+		// Label is right-aligned across the left 8/12 (wide enough that multi-word
+		// labels like "Số nhật ký chăm sóc" stay on one line); the value is
+		// LEFT-aligned in the trailing 4/12 so it sits right next to the label
+		// instead of floating out to the page edge.
 		d.m.AddRow(7,
-			col.New(2),
-			text.NewCol(6, p[0], props.Text{Family: FontFamily, Style: fontstyle.Bold, Size: 10, Align: align.Right, Right: 1}),
-			text.NewCol(4, p[1], props.Text{Family: FontFamily, Style: fontstyle.Bold, Size: 10, Align: align.Right, Right: 1}),
+			text.NewCol(8, p[0], props.Text{Family: FontFamily, Style: fontstyle.Bold, Size: 10, Align: align.Right, Right: 1}),
+			text.NewCol(4, p[1], props.Text{Family: FontFamily, Style: fontstyle.Bold, Size: 10, Align: align.Left, Left: 2}),
 		)
 	}
 }
