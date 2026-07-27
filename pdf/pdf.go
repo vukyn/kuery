@@ -81,6 +81,9 @@ func NewDocument(opts ...Option) (*Document, error) {
 	builder := config.NewBuilder().
 		WithCustomFonts(fonts).
 		WithDefaultFont(&props.Font{Family: FontFamily, Size: 10}).
+		// Tighter top margin than maroto's 10mm default so the report title sits
+		// closer to the page top instead of floating.
+		WithTopMargin(6).
 		WithPageNumber(props.PageNumber{Pattern: "{current} / {total}", Place: props.Bottom, Family: FontFamily, Color: mutedFont})
 
 	for _, opt := range opts {
