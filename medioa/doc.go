@@ -14,6 +14,15 @@
 // Upload / UploadPrivate / UploadChunked, delete with Delete, or build a read
 // URL with PublicURL.
 //
+// Reads come in two shapes. PublicURL is the token-gated endpoint: it resolves
+// an object by minting a short-lived presigned URL and redirecting to it, which
+// costs a hop per hit and produces a URL the edge cannot cache. CDNURL points
+// directly at the object on the public CDN origin — cacheable and non-expiring,
+// at the cost of being unrevocable and invisible to server-side egress
+// accounting. Building a CDNURL needs the object's raw storage key, returned by
+// the upload calls via UploadInput.IncludeRawKey; DeriveRawKey recovers it after
+// the fact for objects uploaded before the key was captured.
+//
 // Visibility: Upload (and UploadChunked) store public objects whose URL
 // resolves through the anonymous token-read endpoint. UploadPrivate forces
 // private visibility — its returned URL is NOT resolvable via public token
