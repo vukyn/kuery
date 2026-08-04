@@ -2,6 +2,7 @@ package ctx
 
 import (
 	"context"
+	"strings"
 
 	pkgClaims "github.com/vukyn/kuery/claims"
 
@@ -154,12 +155,28 @@ func GetTokenIDFromFiberCtx(ctx fiber.Ctx) string {
 	return val.(string)
 }
 
+// GetUserAgentFromFiberCtx returns the request's User-Agent.
+//
+// ⚠️ The clone is load-bearing. Fiber hands out a zero-copy view into fasthttp's
+// request buffer (app.getString is utils.UnsafeString unless Config.Immutable,
+// which no service sets), and that buffer is reused for the next request on the
+// same connection. A caller that RETAINS the value past the request — a map key, a
+// cache entry, a goroutine, a struct field on a singleton — would watch its string
+// change contents underneath it. Cloning here is one small allocation and makes
+// every caller safe by default instead of by accident.
 func GetUserAgentFromFiberCtx(ctx fiber.Ctx) string {
-	return ctx.Get("User-Agent")
+	return strings.Clone(ctx.Get("User-Agent"))
 }
 
+// GetClientIPFromFiberCtx returns the caller's address.
+//
+// ⚠️ Cloned for the same reason as the User-Agent above, and it matters MORE here:
+// when fiber.Config.ProxyHeader is set (a service behind a proxy), ctx.IP() returns
+// that header verbatim and is therefore Fiber-owned. The plain socket path
+// allocates, so without a proxy header the clone is redundant — but a config change
+// in one service must not turn every caller's retained address into garbage.
 func GetClientIPFromFiberCtx(ctx fiber.Ctx) string {
-	return ctx.IP()
+	return strings.Clone(ctx.IP())
 }
 
 func GetPermsFromFiberCtx(ctx fiber.Ctx) []string {
