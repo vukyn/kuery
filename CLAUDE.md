@@ -49,6 +49,8 @@ Cross-package dependency chains to keep in mind when editing: `jwt → claims �
 
 ⚠️ **Fiber v2 strings are not yours to keep.** `c.Get(...)`, `c.Body()`-derived values and `c.IP()` on the `ProxyHeader` path are zero-copy views into fasthttp's request buffer (`app.getString` = `utils.UnsafeString` unless `Config.Immutable`), so the next request overwrites them. Any Fiber-coupled package that RETAINS such a string past the response — a map key, a cached value, a queued item — must `strings.Clone` it first. `http/ratelimit` does; Fiber's own limiter survives only because its storage layer copies defensively.
 
+**kuery clones at the two egress points where a Fiber-owned string would otherwise leave the request:** `ctx.GetUserAgentFromFiberCtx` and `ctx.GetClientIPFromFiberCtx` (and their `ctxv3` twins). Every service calls these per request through `NewContextFromFiberCtx`, so cloning here makes consumers safe by default rather than by accident — a service that stashes the client IP in a cache or a goroutine no longer has a latent bug. `ctx/context_test.go` compares backing-array pointers (the values are equal either way, which is what makes the bug invisible) and fails if either clone is removed. Do not "simplify" them away.
+
 ## Conventions
 
 Shared with the service repos (see `../CLAUDE.md`): `any` not `interface{}`, no abbreviated variable names, snake_case filenames, import groups stdlib | third-party | intra-module. Packages here must stay application-agnostic — no knowledge of any specific service's domains or config.
