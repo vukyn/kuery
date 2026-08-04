@@ -71,6 +71,15 @@ func Forbidden(message string) error {
 	}
 }
 
+// 429 — the caller is being rate-limited. Distinct from 400/401 so a client can
+// tell "slow down" from "wrong input" and from "not signed in".
+func TooManyRequests(message string) error {
+	return &errorImpl{
+		message: message,
+		status:  http.StatusTooManyRequests,
+	}
+}
+
 func (e *errorImpl) Error() string {
 	return e.message
 }
