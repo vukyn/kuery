@@ -40,11 +40,14 @@ Flat top-level packages, no `internal/`, no main. Two tiers:
 | `recover` | Fiber | panic-recovery middleware (`NewFiberRecover`) |
 | `claims`, `jwt` | golang-jwt/v5 | `jwt` → `claims` → `cryp` (ULID for jti). HS256 + RS256 generate/validate |
 | `bun/{hooks,query}` | uptrace/bun | query-logging hook; `SelectWithPagination` takes `http/base.Pagination` (cross-tier import) |
-| `middleware/gin/rate_limiter` | Gin + tollbooth | only Gin-specific package |
+| `http/ratelimit` | Fiber v2 | fixed-window in-memory limiter with a **`CountStatus` predicate** — default `CountAuthFailures` charges 401/403 only, so a 5xx outage or a malformed-body 400 never spends budget (Fiber's limiter charges every `>= 400`). Neither predicate counts 429, so chained tiers can't charge each other. Warns once per key per window; `MaxKeys`-bounded; `OnBlocked` hook for releasing per-request resources on the short-circuit path. **Clones the key** — Fiber strings alias fasthttp's buffer |
+| `middleware/gin/rate_limiter` | Gin + tollbooth | only Gin-specific package; **`http/ratelimit` is the Fiber equivalent**, not a port of this |
 | `log` | zerolog | `log.Logger` (chainable WithField/WithPkg/WithFunc) and **`log.SimpleLogger`** — the interface other packages (`graceful`, `bun/hooks`) accept for logging |
 | `graceful` | — | signal-driven shutdown: `GracefulShutdown(handlers, opts)`, `ShutdownWithCallback`, `SimpleShutdown`; logs via `log.SimpleLogger` |
 
-Cross-package dependency chains to keep in mind when editing: `jwt → claims → cryp`, `ctx → claims`, `bun/query → http/base`, `bun/hooks`/`graceful` → `log`. `http/errors → http/base` (for `Forward`).
+Cross-package dependency chains to keep in mind when editing: `jwt → claims → cryp`, `ctx → claims`, `bun/query → http/base`, `bun/hooks`/`graceful` → `log`. `http/errors → http/base` (for `Forward`), `http/ratelimit → http/{errors,fiber}` + `log` + `text`.
+
+⚠️ **Fiber v2 strings are not yours to keep.** `c.Get(...)`, `c.Body()`-derived values and `c.IP()` on the `ProxyHeader` path are zero-copy views into fasthttp's request buffer (`app.getString` = `utils.UnsafeString` unless `Config.Immutable`), so the next request overwrites them. Any Fiber-coupled package that RETAINS such a string past the response — a map key, a cached value, a queued item — must `strings.Clone` it first. `http/ratelimit` does; Fiber's own limiter survives only because its storage layer copies defensively.
 
 ## Conventions
 
