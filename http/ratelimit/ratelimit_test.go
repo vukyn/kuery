@@ -470,6 +470,64 @@ func TestBlockLoggedOncePerKeyPerWindow(t *testing.T) {
 	}
 }
 
+// TestUncountedRequestsLeaveNoResidue pins that a request whose status does not
+// count leaves NO key behind.
+//
+// Reserving happens before the status is known, so without deleting an emptied entry
+// an uncounted status (5xx, a validation 400, an inner tier's 429) would create a
+// tracked key at zero budget cost. The key is attacker-influenced, so that residue is
+// a free way to fill the bounded map — and once it is full, admitting a new key
+// evicts the entry nearest to expiry, which can be a real caller's. The limiter would
+// start forgetting the very buckets it exists to remember.
+func TestUncountedRequestsLeaveNoResidue(t *testing.T) {
+	const maxKeys = 8
+
+	newApp := func(status int) (*fiber.App, *store) {
+		clock := newFakeClock()
+		handler, keys := newMiddleware(Config{
+			Max:     3,
+			Window:  time.Hour,
+			MaxKeys: maxKeys,
+			KeyFunc: headerKey,
+			Clock:   clock.Now,
+		})
+		app := fiber.New()
+		responder := &countingHandler{status: status}
+		app.Get("/", handler, responder.handle)
+		return app, keys
+	}
+
+	// 500 is not counted by CountAuthFailures. Far more distinct keys than the cap,
+	// with a clock that never advances, so only deletion can keep the map empty.
+	app, keys := newApp(http.StatusInternalServerError)
+	for index := 0; index < 200; index++ {
+		do(t, app, "key-"+strconv.Itoa(index))
+	}
+	if size := storeSize(t, keys); size != 0 {
+		t.Fatalf("tracked %d keys after 200 uncounted requests, want 0 — an uncounted request must not leave a key behind", size)
+	}
+
+	// A validation 400 is uncounted too, and is the case a buggy client produces.
+	badRequestApp, badRequestKeys := newApp(http.StatusBadRequest)
+	for index := 0; index < 50; index++ {
+		do(t, badRequestApp, "bad-"+strconv.Itoa(index))
+	}
+	if size := storeSize(t, badRequestKeys); size != 0 {
+		t.Fatalf("tracked %d keys after 50 uncounted 400s, want 0", size)
+	}
+
+	// A COUNTED status must still leave its key — otherwise this would have broken
+	// the limiter rather than tightened it.
+	countedApp, countedKeys := newApp(http.StatusUnauthorized)
+	do(t, countedApp, "spender")
+	if size := storeSize(t, countedKeys); size != 1 {
+		t.Fatalf("tracked %d keys after one counted request, want 1", size)
+	}
+	if got := countFor(t, countedKeys, "spender"); got != 1 {
+		t.Fatalf("counter for a counted request = %d, want 1", got)
+	}
+}
+
 func TestMaxKeysBoundsTrackedSet(t *testing.T) {
 	const maxKeys = 8
 	clock := newFakeClock()
