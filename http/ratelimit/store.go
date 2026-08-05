@@ -97,6 +97,15 @@ func (s *store) reserve(key string) reservation {
 // refund returns one slot to key. It is a no-op when the key's window has already
 // rolled over or the entry was evicted — there is nothing to give back, and
 // decrementing a fresh window would hand out extra budget.
+//
+// An entry refunded back to zero is DELETED rather than left at zero. Reserving
+// creates the entry before the response status is known, so an uncounted status
+// (5xx, a validation 400, an inner tier's 429) would otherwise leave a key behind
+// that cost the caller no budget at all. Since the key is attacker-influenced, that
+// residue is a free way to fill the bounded map: once it is full, admitting a new
+// key evicts the entry nearest to expiry, which can be a real caller's — so the
+// limiter starts forgetting the buckets it exists to remember. Deleting an empty
+// entry keeps the map's size proportional to callers who actually spent budget.
 func (s *store) refund(key string) {
 	now := s.now()
 
@@ -109,6 +118,11 @@ func (s *store) refund(key string) {
 	}
 	if current.count > 0 {
 		current.count--
+	}
+	// `logged` is kept: an entry that has already reported a block in this window
+	// still carries state worth remembering, so only untouched entries are dropped.
+	if current.count == 0 && !current.logged {
+		delete(s.entries, key)
 	}
 }
 
