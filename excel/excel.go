@@ -391,6 +391,75 @@ func (b *Workbook) StyleHeaderCells(sheet string, colIdxs []int, fillARGB, fontA
 	return nil
 }
 
+// LastRow returns the 1-based index of the row most recently written to the sheet,
+// or 0 when nothing has been written yet (and for an unknown sheet).
+//
+// Exists so a caller can style the row it just wrote without re-deriving the number
+// from a loop index — that derivation has to account for the header row, which is
+// exactly the off-by-one worth not repeating per report.
+func (b *Workbook) LastRow(sheet string) int {
+	next, ok := b.nextRow[sheet]
+	if !ok || next <= 1 {
+		return 0
+	}
+	return next - 1
+}
+
+// StyleRow applies a solid fill and/or font colour across columns 1..columns of a
+// 1-based row — e.g. tinting a voided record so it reads as void at a glance
+// instead of only in a status column.
+//
+// fillARGB "" leaves the background alone; fontARGB "" leaves the font colour alone
+// (pass both to do both). Deliberately no bold: bold is the header's signature, and
+// a highlighted data row that is also bold competes with it.
+//
+// Called once per highlighted row, so it creates a style per call — deliberately NOT
+// cached, because excelize already dedupes identical styles (measured: 50 identical
+// NewStyle calls all return id 1). A cache here would be code that cannot be observed
+// working, which is worse than none.
+//
+// A row < 1 or columns < 1 is a no-op.
+func (b *Workbook) StyleRow(sheet string, row, columns int, fillARGB, fontARGB string) error {
+	if row < 1 || columns < 1 {
+		return nil
+	}
+	if _, ok := b.nextRow[sheet]; !ok {
+		return fmt.Errorf("excel: style row: unknown sheet %q", sheet)
+	}
+	if fillARGB == "" && fontARGB == "" {
+		return nil
+	}
+
+	style := &excelize.Style{}
+	if fillARGB != "" {
+		style.Fill = excelize.Fill{
+			Type:    "pattern",
+			Pattern: 1,
+			Color:   []string{fillARGB},
+		}
+	}
+	if fontARGB != "" {
+		style.Font = &excelize.Font{Color: fontARGB}
+	}
+	styleID, styleErr := b.f.NewStyle(style)
+	if styleErr != nil {
+		return fmt.Errorf("excel: row style: %w", styleErr)
+	}
+
+	first, err := excelize.CoordinatesToCellName(1, row)
+	if err != nil {
+		return fmt.Errorf("excel: style row %d: %w", row, err)
+	}
+	last, err := excelize.CoordinatesToCellName(columns, row)
+	if err != nil {
+		return fmt.Errorf("excel: style row %d: %w", row, err)
+	}
+	if err := b.f.SetCellStyle(sheet, first, last, styleID); err != nil {
+		return fmt.Errorf("excel: style row %d apply: %w", row, err)
+	}
+	return nil
+}
+
 // SetColWidth sets the width of the columns between startCol and endCol (1-based,
 // inclusive) on the sheet — report ergonomics so long labels aren't clipped. No-op
 // on an unknown sheet or a non-positive width.
