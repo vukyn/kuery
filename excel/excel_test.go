@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/xuri/excelize/v2"
+
 	"github.com/vukyn/kuery/excel"
 )
 
@@ -196,5 +198,101 @@ func TestColumnLetter(t *testing.T) {
 	t.Parallel()
 	if got, err := excel.ColumnLetter(27); err != nil || got != "AA" {
 		t.Fatalf("ColumnLetter(27) = %q, %v; want AA", got, err)
+	}
+}
+
+func TestLastRowTracksWrites(t *testing.T) {
+	t.Parallel()
+	wb, err := excel.NewWorkbook("S")
+	if err != nil {
+		t.Fatalf("NewWorkbook: %v", err)
+	}
+	defer wb.Close()
+
+	if got := wb.LastRow("S"); got != 0 {
+		t.Fatalf("LastRow before any write = %d, want 0", got)
+	}
+	if got := wb.LastRow("nope"); got != 0 {
+		t.Fatalf("LastRow of an unknown sheet = %d, want 0", got)
+	}
+	if err := wb.SetHeader("S", []string{"A", "B"}); err != nil {
+		t.Fatalf("SetHeader: %v", err)
+	}
+	if got := wb.LastRow("S"); got != 1 {
+		t.Fatalf("LastRow after the header = %d, want 1", got)
+	}
+	if err := wb.WriteRow("S", []any{1, 2}); err != nil {
+		t.Fatalf("WriteRow: %v", err)
+	}
+	if got := wb.LastRow("S"); got != 2 {
+		t.Fatalf("LastRow after one data row = %d, want 2", got)
+	}
+}
+
+// StyleRow must paint the row it is pointed at, and repeated identical highlights
+// must not multiply styles in the file. That second half needs NO cache in kuery:
+// excelize dedupes identical styles itself (measured — 50 identical NewStyle calls
+// all return id 1), which is why StyleRow just builds the style per call. The
+// assertion is kept so a future excelize that stops deduping is caught here rather
+// than in a bloated report.
+func TestStyleRowPaintsAndSharesOneStyle(t *testing.T) {
+	t.Parallel()
+	wb, err := excel.NewWorkbook("S")
+	if err != nil {
+		t.Fatalf("NewWorkbook: %v", err)
+	}
+	defer wb.Close()
+
+	if err := wb.SetHeader("S", []string{"A", "B"}); err != nil {
+		t.Fatalf("SetHeader: %v", err)
+	}
+	styled := make([]int, 0, 3)
+	for i := range 3 {
+		if err := wb.WriteRow("S", []any{i, i}); err != nil {
+			t.Fatalf("WriteRow: %v", err)
+		}
+		row := wb.LastRow("S")
+		if err := wb.StyleRow("S", row, 2, "FFF1F2", "B91C1C"); err != nil {
+			t.Fatalf("StyleRow: %v", err)
+		}
+		styled = append(styled, row)
+	}
+
+	// No-ops rather than errors: a caller looping over rows should not have to
+	// special-case an empty highlight.
+	if err := wb.StyleRow("S", 0, 2, "FFF1F2", ""); err != nil {
+		t.Fatalf("StyleRow(row 0): %v", err)
+	}
+	if err := wb.StyleRow("S", 2, 2, "", ""); err != nil {
+		t.Fatalf("StyleRow(no colours): %v", err)
+	}
+	if err := wb.StyleRow("nope", 2, 2, "FFF1F2", ""); err == nil {
+		t.Fatal("StyleRow on an unknown sheet must error")
+	}
+
+	data, err := wb.Bytes()
+	if err != nil {
+		t.Fatalf("Bytes: %v", err)
+	}
+	// The painted rows must carry a style id, and all three must share ONE id.
+	ids := map[int]bool{}
+	f, err := excelize.OpenReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer f.Close()
+	for _, row := range styled {
+		cell, _ := excelize.CoordinatesToCellName(1, row)
+		id, err := f.GetCellStyle("S", cell)
+		if err != nil {
+			t.Fatalf("GetCellStyle %s: %v", cell, err)
+		}
+		if id == 0 {
+			t.Fatalf("row %d carries no style", row)
+		}
+		ids[id] = true
+	}
+	if len(ids) != 1 {
+		t.Fatalf("identical highlights must collapse to one style, got %d: %v", len(ids), ids)
 	}
 }
