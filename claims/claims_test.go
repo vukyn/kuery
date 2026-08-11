@@ -72,6 +72,46 @@ func TestResourceAccessRoundTrip(t *testing.T) {
 	}
 }
 
+// TestSessionIDRoundTrip pins that "sid" survives sign + parse. The getter reads
+// a JSON-decoded map, so a claim that is only ever asserted on the in-memory
+// value would not prove the claim actually crosses the wire.
+func TestSessionIDRoundTrip(t *testing.T) {
+	const sessionID = "01JBQ7Z2K9SESSION0000000"
+
+	parsed := signAndParse(t, NewClaims("user-1", "user@example.com", 3600).
+		WithSessionID(sessionID))
+
+	if got := parsed.GetSessionID(); got != sessionID {
+		t.Errorf("GetSessionID() = %q, want %q", got, sessionID)
+	}
+	// sid addresses the login session, jti a single token: they must not collide.
+	if got := parsed.GetTokenID(); got == sessionID {
+		t.Errorf("GetTokenID() = %q, want it to differ from the session id", got)
+	}
+}
+
+// TestGetSessionIDMissing covers tokens minted before the "sid" claim existed.
+// They must read as "unknown session" ("") rather than panicking, because the
+// auth middleware uses that empty value to skip the revocation check.
+func TestGetSessionIDMissing(t *testing.T) {
+	parsed := signAndParse(t, NewClaims("u", "e", 3600))
+	if got := parsed.GetSessionID(); got != "" {
+		t.Errorf("GetSessionID() = %q, want %q", got, "")
+	}
+}
+
+// TestGetSessionIDNonString guards the auth middleware against a hand-crafted
+// token carrying a non-string sid: the getter must degrade to "" instead of
+// panicking on a type assertion inside request handling.
+func TestGetSessionIDNonString(t *testing.T) {
+	c := NewClaims("u", "e", 3600)
+	c.MapClaims[SessionIDKey] = 42
+	parsed := signAndParse(t, c)
+	if got := parsed.GetSessionID(); got != "" {
+		t.Errorf("GetSessionID() = %q, want %q", got, "")
+	}
+}
+
 func TestGetAudienceArray(t *testing.T) {
 	parsed := signAndParse(t, NewClaims("u", "e", 3600).WithAudience([]string{"isme", "rainy"}))
 	got := parsed.GetAudience()
