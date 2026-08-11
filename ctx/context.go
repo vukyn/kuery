@@ -16,6 +16,7 @@ var (
 	UserIDKey             ContextKey = "user_id"
 	EmailKey              ContextKey = "email"
 	TokenIDKey            ContextKey = "token_id"
+	SessionIDKey          ContextKey = "session_id"
 	ClientIPKey           ContextKey = "client_ip"
 	UserAgentKey          ContextKey = "user_agent"
 	PermsKey              ContextKey = "perms"
@@ -31,6 +32,7 @@ func SetClaimsToFiberCtx(ctx *fiber.Ctx, claims pkgClaims.Claims) {
 	ctx.Locals(string(UserIDKey), claims.GetUserID())
 	ctx.Locals(string(EmailKey), claims.GetEmail())
 	ctx.Locals(string(TokenIDKey), claims.GetTokenID())
+	ctx.Locals(string(SessionIDKey), claims.GetSessionID())
 }
 
 func SetUserIDToFiberCtx(ctx *fiber.Ctx, userID string) {
@@ -45,6 +47,13 @@ func SetTokenIDToFiberCtx(ctx *fiber.Ctx, tokenID string) {
 	ctx.Locals(string(TokenIDKey), tokenID)
 }
 
+// SetSessionIDToFiberCtx stores the id of the login session behind the request.
+// Unlike the token id it survives refresh-token rotation, so it is what a
+// handler should use to address "this session" (e.g. to revoke it on logout).
+func SetSessionIDToFiberCtx(ctx *fiber.Ctx, sessionID string) {
+	ctx.Locals(string(SessionIDKey), sessionID)
+}
+
 // SetPermsToFiberCtx stores the caller's permission codes for the current app.
 func SetPermsToFiberCtx(ctx *fiber.Ctx, perms []string) {
 	ctx.Locals(string(PermsKey), perms)
@@ -54,6 +63,7 @@ func NewContextFromFiberCtx(fiberCtx *fiber.Ctx) context.Context {
 	userID := GetUserIdFromFiberCtx(fiberCtx)
 	email := GetUserEmailFromFiberCtx(fiberCtx)
 	tokenID := GetTokenIDFromFiberCtx(fiberCtx)
+	sessionID := GetSessionIDFromFiberCtx(fiberCtx)
 	userAgent := GetUserAgentFromFiberCtx(fiberCtx)
 	clientIP := GetClientIPFromFiberCtx(fiberCtx)
 	perms := GetPermsFromFiberCtx(fiberCtx)
@@ -62,6 +72,7 @@ func NewContextFromFiberCtx(fiberCtx *fiber.Ctx) context.Context {
 	ctx = context.WithValue(ctx, UserIDKey, userID)
 	ctx = context.WithValue(ctx, EmailKey, email)
 	ctx = context.WithValue(ctx, TokenIDKey, tokenID)
+	ctx = context.WithValue(ctx, SessionIDKey, sessionID)
 	ctx = context.WithValue(ctx, UserAgentKey, userAgent)
 	ctx = context.WithValue(ctx, ClientIPKey, clientIP)
 	ctx = context.WithValue(ctx, PermsKey, perms)
@@ -97,6 +108,19 @@ func GetTokenID(ctx context.Context) string {
 	}
 	if tokenID, ok := tokenID.(string); ok {
 		return tokenID
+	}
+	return ""
+}
+
+// GetSessionID returns the login session id carried by the request context, or
+// "" when the caller's token predates the "sid" claim.
+func GetSessionID(ctx context.Context) string {
+	sessionID := ctx.Value(SessionIDKey)
+	if sessionID == nil {
+		return ""
+	}
+	if sessionID, ok := sessionID.(string); ok {
+		return sessionID
 	}
 	return ""
 }
@@ -149,6 +173,14 @@ func GetUserEmailFromFiberCtx(ctx *fiber.Ctx) string {
 
 func GetTokenIDFromFiberCtx(ctx *fiber.Ctx) string {
 	val := ctx.Locals(string(TokenIDKey))
+	if val == nil {
+		return ""
+	}
+	return val.(string)
+}
+
+func GetSessionIDFromFiberCtx(ctx *fiber.Ctx) string {
+	val := ctx.Locals(string(SessionIDKey))
 	if val == nil {
 		return ""
 	}

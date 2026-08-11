@@ -1,13 +1,96 @@
 package ctx
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"unsafe"
 
+	pkgClaims "github.com/vukyn/kuery/claims"
+
 	"github.com/gofiber/fiber/v2"
 )
+
+const testSessionID = "01JBQ7Z2K9SESSION0000000"
+
+// TestSessionIDRoundTripsBothPaths covers the two ways a session id reaches
+// application code: read straight back off the Fiber locals (middleware and
+// handlers), and read off the context.Context that NewContextFromFiberCtx builds
+// for usecases. Wiring only one of the two is the easy mistake — the handler
+// would see the id and the usecase underneath it would silently see "".
+func TestSessionIDRoundTripsBothPaths(t *testing.T) {
+	app := fiber.New()
+
+	var fromLocals, fromContext string
+	app.Get("/", func(c *fiber.Ctx) error {
+		SetSessionIDToFiberCtx(c, testSessionID)
+		fromLocals = GetSessionIDFromFiberCtx(c)
+		fromContext = GetSessionID(NewContextFromFiberCtx(c))
+		return c.SendStatus(http.StatusOK)
+	})
+
+	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/", nil))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	if fromLocals != testSessionID {
+		t.Errorf("GetSessionIDFromFiberCtx() = %q, want %q", fromLocals, testSessionID)
+	}
+	if fromContext != testSessionID {
+		t.Errorf("GetSessionID(ctx) = %q, want %q", fromContext, testSessionID)
+	}
+}
+
+// TestSetClaimsToFiberCtxCarriesSessionID pins the isme-internal claims path,
+// which populates the locals from a freshly validated token rather than field by
+// field.
+func TestSetClaimsToFiberCtxCarriesSessionID(t *testing.T) {
+	app := fiber.New()
+
+	var got string
+	app.Get("/", func(c *fiber.Ctx) error {
+		SetClaimsToFiberCtx(c, pkgClaims.NewClaims("u", "e", 3600).WithSessionID(testSessionID))
+		got = GetSessionIDFromFiberCtx(c)
+		return c.SendStatus(http.StatusOK)
+	})
+
+	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/", nil))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	if got != testSessionID {
+		t.Errorf("session id after SetClaimsToFiberCtx = %q, want %q", got, testSessionID)
+	}
+}
+
+// TestSessionIDAbsentIsEmpty covers both "nothing was ever set" entry points, so
+// a caller can treat "" as "unknown session" instead of guarding against nil.
+func TestSessionIDAbsentIsEmpty(t *testing.T) {
+	if got := GetSessionID(context.Background()); got != "" {
+		t.Errorf("GetSessionID(background) = %q, want %q", got, "")
+	}
+
+	app := fiber.New()
+	var fromLocals string
+	app.Get("/", func(c *fiber.Ctx) error {
+		fromLocals = GetSessionIDFromFiberCtx(c)
+		return c.SendStatus(http.StatusOK)
+	})
+	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/", nil))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	if fromLocals != "" {
+		t.Errorf("GetSessionIDFromFiberCtx() with nothing set = %q, want %q", fromLocals, "")
+	}
+}
 
 // TestFiberOwnedStringsAreCloned pins that the two request-derived accessors return
 // a COPY, not Fiber's own bytes.
@@ -75,7 +158,7 @@ func TestFiberOwnedStringsAreCloned(t *testing.T) {
 			if err != nil {
 				t.Fatalf("request: %v", err)
 			}
-			defer response.Body.Close()
+			defer func() { _ = response.Body.Close() }()
 
 			if failure != "" {
 				t.Fatal(failure)

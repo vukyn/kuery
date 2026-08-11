@@ -10,6 +10,7 @@ import (
 
 const (
 	TokenIDKey        = "jti"
+	SessionIDKey      = "sid"
 	UserIDKey         = "uid"
 	EmailKey          = "email"
 	ExpiredAtKey      = "exp"
@@ -44,6 +45,19 @@ func (c Claims) WithAudience(appCodes []string) Claims {
 	return c
 }
 
+// WithSessionID attaches the id of the login session that minted the token (the
+// "sid" claim).
+//
+// Unlike "jti", which identifies a single token and is replaced every time the
+// refresh token rotates, "sid" stays stable for the whole life of the session.
+// That is what makes it usable as the key for session revocation: an issuer can
+// look up "is the session behind this token still active?" no matter how many
+// times the token has been rotated since login.
+func (c Claims) WithSessionID(sessionID string) Claims {
+	c.MapClaims[SessionIDKey] = sessionID
+	return c
+}
+
 // WithResourceAccess attaches per-app permission codes to the claims, stored as a
 // nested map ({"<app_code>":{"perms":[...]}}) so the JWT round-trip stays lossless.
 func (c Claims) WithResourceAccess(access map[string][]string) Claims {
@@ -63,6 +77,23 @@ func (c Claims) GetTokenID() string {
 		return ""
 	}
 	return val.(string)
+}
+
+// GetSessionID returns the login session id carried by the token, or "" when the
+// token predates the "sid" claim (or was minted by an issuer that does not set
+// it). Callers must treat "" as "unknown session", not as an error.
+func (c Claims) GetSessionID() string {
+	val := c.MapClaims[SessionIDKey]
+	if val == nil {
+		return ""
+	}
+	// A malformed token could carry a non-string sid; degrade to "unknown"
+	// rather than panicking inside auth middleware.
+	sessionID, ok := val.(string)
+	if !ok {
+		return ""
+	}
+	return sessionID
 }
 
 func (c Claims) GetUserID() string {
