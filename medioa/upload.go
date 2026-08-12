@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"mime/multipart"
+	"strconv"
 )
 
 // defaultChunkSize is used by UploadChunked when chunkSize <= 0 (8 MiB).
@@ -31,6 +32,17 @@ type UploadInput struct {
 	// honors it for public-visibility uploads; a private upload returns an empty
 	// raw key. Default false.
 	IncludeRawKey bool
+	// TotalSize is the file's size in bytes. Optional, and used only by
+	// UploadChunked: a positive value makes it open the upload with an /init call
+	// that declares the size, so the server can reject an over-cap file for the
+	// price of one small request instead of the whole transfer. Zero leaves the
+	// legacy behaviour (the first stage call mints the file id) untouched.
+	//
+	// It is a declaration, not a promise the server trusts: the server measures
+	// the running total as parts arrive and the assembled total at commit, and a
+	// value that disagrees with what is actually sent is rejected. Setting it
+	// wrong therefore fails the upload rather than bypassing the cap.
+	TotalSize int64
 }
 
 // UploadResult is the decoded data of a successful single-shot upload or
@@ -46,6 +58,11 @@ type UploadResult struct {
 	FileName string `json:"file_name"`
 	FileSize int64  `json:"file_size"`
 	Ext      string `json:"ext"`
+}
+
+// initChunkResult is the decoded data of an /upload/init call.
+type initChunkResult struct {
+	FileID string `json:"file_id"`
 }
 
 // uploadChunkResult is the decoded data of a stage call.
@@ -129,14 +146,25 @@ func (c *Client) Delete(ctx context.Context, fileID string) error {
 	return c.doDelete(ctx, pathDeleteObject+fileID, nil)
 }
 
-// UploadChunked streams in.File in chunks of chunkSize bytes: it stages the
-// first chunk with an empty file_id, captures the server-assigned file_id, then
-// stages every remaining chunk under that id and finally commits (file_id,
-// path). The commit result is returned.
+// UploadChunked streams in.File in chunks of chunkSize bytes and commits the
+// result. file_id threading is the crux of the flow: the id is minted once and
+// every subsequent stage call and the commit call reuse it.
 //
-// file_id threading is the crux of the flow: only the FIRST stage call sends an
-// empty file_id (which makes the server start a new object and mint the id);
-// every subsequent stage call and the commit call reuse that captured id.
+// There are two ways to mint it, chosen by in.TotalSize:
+//
+//   - TotalSize > 0: an /upload/init call declares the size up front and returns
+//     the id, so the server can reject an over-cap or over-quota file for the
+//     price of one small request. Without this, the first 8 MiB part is already
+//     on the wire before the server can say no — a multipart body has to be
+//     parsed to be read, so no field or header in the stage call can be seen
+//     earlier than the part beside it.
+//   - TotalSize == 0: the legacy flow, where the first stage call sends an empty
+//     file_id and the server mints the id from it.
+//
+// An /init that 404s is returned as an error rather than falling back to the
+// legacy flow. A silent fallback would turn "the server is older than this SDK"
+// into a working upload that quietly loses the early rejection, which is exactly
+// the deploy-order mistake worth failing loudly on.
 //
 // chunkSize <= 0 selects defaultChunkSize (8 MiB).
 func (c *Client) UploadChunked(ctx context.Context, in UploadInput, chunkSize int) (*UploadResult, error) {
@@ -151,6 +179,17 @@ func (c *Client) UploadChunked(ctx context.Context, in UploadInput, chunkSize in
 	fileID := ""
 	staged := false
 
+	if in.TotalSize > 0 {
+		init, err := c.initUpload(ctx, in)
+		if err != nil {
+			return nil, err
+		}
+		if init.FileID == "" {
+			return nil, errors.New("medioa: /upload/init returned no file_id")
+		}
+		fileID = init.FileID
+	}
+
 	for {
 		n, readErr := io.ReadFull(in.File, buf)
 		if n > 0 {
@@ -158,8 +197,12 @@ func (c *Client) UploadChunked(ctx context.Context, in UploadInput, chunkSize in
 			if err != nil {
 				return nil, err
 			}
-			// The first stage mints the file_id; thread it through the rest.
-			fileID = stage.FileID
+			// Without an /init the first stage mints the file_id; with one the server
+			// echoes the id back. Only overwrite with a non-empty value so an
+			// unexpected empty response cannot discard an id that is already good.
+			if stage.FileID != "" {
+				fileID = stage.FileID
+			}
 			staged = true
 		}
 
@@ -178,6 +221,40 @@ func (c *Client) UploadChunked(ctx context.Context, in UploadInput, chunkSize in
 	}
 
 	return c.commitChunk(ctx, fileID, in.Path, in.IncludeRawKey)
+}
+
+// initUpload POSTs to /upload/init to open a chunked upload and mint its file id
+// without sending any of the file. total_size is the declared byte count the
+// server pre-flights against its per-file cap and the caller's quota.
+//
+// The body is a multipart form with no file part: the server's public surface
+// reads its fields with FormValue, so the encoding has to match the sibling
+// endpoints even though nothing is being uploaded yet.
+func (c *Client) initUpload(ctx context.Context, in UploadInput) (*initChunkResult, error) {
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	// Written unconditionally, not through writeOptionalFields: total_size is the
+	// entire point of the call, and the server rejects an absent or unparseable
+	// value with a 400.
+	if err := writer.WriteField("total_size", strconv.FormatInt(in.TotalSize, 10)); err != nil {
+		return nil, err
+	}
+	if err := writeOptionalFields(writer, map[string]string{
+		"file_name": in.FileName,
+		"ext":       in.Ext,
+	}); err != nil {
+		return nil, err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+
+	var result initChunkResult
+	if err := c.doMultipart(ctx, pathUploadInit, writer.FormDataContentType(), &buf, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 // stageChunk POSTs one chunk to /upload/stage. fileID is empty on the first
