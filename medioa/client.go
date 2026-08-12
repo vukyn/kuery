@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -19,12 +20,19 @@ const (
 	// apiKeyHeader carries the public-API key on every write call.
 	apiKeyHeader = "X-API-Key"
 
+	// defaultLimitsTTL bounds how stale a cached Limits answer may be. Short
+	// enough that an operator's cap change reaches consumers on its own, long
+	// enough that a per-file pre-flight is not a per-file round trip.
+	defaultLimitsTTL = 5 * time.Minute
+
 	// Route fragments — mirror medioa2's constants. The public groups mount
 	// under /api/v1.
 	pathUpload        = "/api/v1/public/storage/upload"
 	pathUploadPrivate = "/api/v1/public/storage/upload/private"
+	pathUploadInit    = "/api/v1/public/storage/upload/init"
 	pathUploadStage   = "/api/v1/public/storage/upload/stage"
 	pathUploadCommit  = "/api/v1/public/storage/upload/commit"
+	pathLimits        = "/api/v1/public/storage/limits"
 	pathDeleteObject  = "/api/v1/public/storage/"
 	pathPublicObject  = "/api/v1/public/objects/"
 )
@@ -44,6 +52,14 @@ type Config struct {
 	// Timeout is applied to the internally created client when HTTPClient is
 	// nil. Ignored when HTTPClient is set.
 	Timeout time.Duration
+	// LimitsTTL is how long Limits caches the server's answer. Zero selects
+	// defaultLimitsTTL; a negative value disables caching (every call refetches).
+	//
+	// A TTL rather than a fetch-once is deliberate: the cap lives in the server's
+	// env, so an operator who raises it expects consumers to follow without a
+	// restart, and a stale value here would reject uploads the server would now
+	// accept.
+	LimitsTTL time.Duration
 }
 
 // Client is a typed medioa2 public-API client. It is safe for concurrent use.
@@ -51,6 +67,17 @@ type Client struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
+
+	// limitsTTL, limitsMutex, cachedLimits and limitsFetchedAt back the Limits
+	// cache. The mutex is held across the HTTP call so concurrent callers on a
+	// cold cache issue one request rather than one each.
+	limitsTTL       time.Duration
+	limitsMutex     sync.Mutex
+	cachedLimits    *Limits
+	limitsFetchedAt time.Time
+
+	// now is time.Now, indirected so a test can age the cache without sleeping.
+	now func() time.Time
 }
 
 // New validates the config and returns a ready Client.
@@ -72,10 +99,17 @@ func New(cfg Config) (*Client, error) {
 		httpClient = &http.Client{Timeout: timeout}
 	}
 
+	limitsTTL := cfg.LimitsTTL
+	if limitsTTL == 0 {
+		limitsTTL = defaultLimitsTTL
+	}
+
 	return &Client{
 		baseURL:    baseURL,
 		apiKey:     cfg.APIKey,
 		httpClient: httpClient,
+		limitsTTL:  limitsTTL,
+		now:        time.Now,
 	}, nil
 }
 
@@ -113,6 +147,17 @@ func (c *Client) doMultipart(ctx context.Context, path, contentType string, body
 // are mapped to the typed errors.
 func (c *Client) doDelete(ctx context.Context, path string, out any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+path, nil)
+	if err != nil {
+		return fmt.Errorf("medioa: build request: %w", err)
+	}
+
+	return c.do(req, out)
+}
+
+// doGet sends a bodyless GET to path, attaches the API key, and decodes the
+// enveloped data into out. Non-2xx responses are mapped to the typed errors.
+func (c *Client) doGet(ctx context.Context, path string, out any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
 	if err != nil {
 		return fmt.Errorf("medioa: build request: %w", err)
 	}
