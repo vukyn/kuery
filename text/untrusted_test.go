@@ -57,3 +57,22 @@ func TestSanitizeUntrusted(t *testing.T) {
 		t.Fatalf("expected 8 runes + marker, got %d", runeCount)
 	}
 }
+
+// 🚨 The bidi overrides are category Cf, so unicode.IsControl — and therefore
+// StripControl and SanitizeUntrusted — let them through. Anything RENDERING
+// untrusted text needs StripFormatting instead, or a short label can reverse the
+// display of everything after it.
+func TestStripFormattingRemovesBidiOverrides(t *testing.T) {
+	hostile := "AB‮CD​EF\x07"
+
+	if got := StripControl(hostile); got != "AB‮CD​EF" {
+		t.Fatalf("StripControl is expected to leave Cf alone (that is why StripFormatting exists), got %q", got)
+	}
+	if got := StripFormatting(hostile); got != "ABCDEF" {
+		t.Fatalf("StripFormatting = %q, want %q", got, "ABCDEF")
+	}
+	// Ordinary Vietnamese text is untouched — the diacritics are marks, not formats.
+	if got := StripFormatting("Vườn Nhà Gô"); got != "Vườn Nhà Gô" {
+		t.Fatalf("StripFormatting must not touch normal text, got %q", got)
+	}
+}
