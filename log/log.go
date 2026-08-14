@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -21,6 +22,30 @@ const (
 	LOG_LEVEL_ERROR    = "error"
 	LOG_LEVEL_PANIC    = "panic"
 	LOG_LEVEL_DISABLED = "disabled"
+)
+
+// LogModes and LogLevels are the accepted values for Config.Mode and Config.Level.
+//
+// They exist so a rejection can NAME the alternatives. Init is called during
+// startup and its error is fatal, so the message is the entire diagnosis a reader
+// gets: "invalid log mode: dev" leaves them grepping this package to find out what
+// `dev` should have been, on a service that is already down. The values live in an
+// app's env file, where a plausible-but-wrong guess is the normal mistake.
+//
+// ⚠️ Nothing in the compiler ties these slices to the switch statements below —
+// TestInitAcceptsEveryDocumentedValue is what catches a value added to one and not
+// the other, which would make the error message advertise a value Init rejects.
+var (
+	LogModes = []string{LOG_MODE_PRETTY, LOG_MODE_JSON}
+
+	LogLevels = []string{
+		LOG_LEVEL_DEBUG,
+		LOG_LEVEL_INFO,
+		LOG_LEVEL_WARN,
+		LOG_LEVEL_ERROR,
+		LOG_LEVEL_PANIC,
+		LOG_LEVEL_DISABLED,
+	}
 )
 
 type Config struct {
@@ -47,7 +72,7 @@ func Init(cfg Config) error {
 	case LOG_MODE_JSON:
 		log.Logger = log.Output(os.Stderr)
 	default:
-		return fmt.Errorf("invalid log mode: %s", cfg.Mode)
+		return fmt.Errorf("invalid log mode %q (valid: %s)", cfg.Mode, strings.Join(LogModes, ", "))
 	}
 
 	// set log level
@@ -65,7 +90,7 @@ func Init(cfg Config) error {
 	case LOG_LEVEL_DISABLED:
 		zerolog.SetGlobalLevel(zerolog.Disabled)
 	default:
-		return fmt.Errorf("invalid log level: %s", cfg.Level)
+		return fmt.Errorf("invalid log level %q (valid: %s)", cfg.Level, strings.Join(LogLevels, ", "))
 	}
 
 	return nil
