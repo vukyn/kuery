@@ -2,9 +2,11 @@ package cryp
 
 import (
 	"crypto/md5"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
+	"time"
 
 	uuid "github.com/google/uuid"
 	ulid "github.com/oklog/ulid/v2"
@@ -20,13 +22,33 @@ func UUID() string {
 	return uuid.New().String()
 }
 
-// ULID generate a ULID
+// ULID generates a ULID whose entropy comes from crypto/rand.
+//
+// ⚠️ It deliberately does NOT use ulid.Make(). That helper draws from
+// ulid.DefaultEntropy(), which is a process-wide math/rand seeded once from
+// time.Now().UnixNano() and then advanced monotonically. The 48-bit prefix of
+// every ULID is already a plain millisecond timestamp, so an observer who holds
+// a handful of ULIDs from a process can recover that seed offline and then
+// compute every ULID that process will ever mint.
+//
+// That is harmless when a ULID is only a database row id, which is most of its
+// use — but callers across this platform also use it as a CREDENTIAL: an OAuth
+// authorization code, a session id, a JWT jti, an object-storage key. Those must
+// be unguessable, and one predictable generator behind all of them is a single
+// point of failure. Drawing from crypto/rand costs nothing measurable and
+// removes the distinction entirely, so the safe source is the only source.
+//
+// Sort order is preserved: the timestamp prefix is unchanged, so ULIDs still
+// sort lexicographically by creation time. What is lost is ulid.Make's
+// monotonic guarantee WITHIN a single millisecond — two ULIDs minted in the
+// same millisecond now order randomly relative to each other. No caller here
+// depends on sub-millisecond ordering.
 //
 // Example:
 //
 //	ULID() => "01D7Z9Z1ZQ0QZQZQZQZQZQZQZQ"
 func ULID() string {
-	return ulid.Make().String()
+	return ulid.MustNew(ulid.Timestamp(time.Now()), rand.Reader).String()
 }
 
 // Hash content with MD5 algorithm
