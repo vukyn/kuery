@@ -1,8 +1,6 @@
 module github.com/vukyn/kuery
 
-go 1.26.4
-
-toolchain go1.26.5
+go 1.27.1
 
 require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
