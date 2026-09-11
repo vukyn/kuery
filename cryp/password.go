@@ -19,6 +19,27 @@ const (
 	argon2idKeyLength   uint32 = 32
 )
 
+// Bounds on the cost parameters read back out of a stored hash.
+//
+// CompareArgon2id takes time/memory/parallelism from the hash string rather than
+// from the constants above, which is what lets an old hash keep verifying after
+// a parameter bump — but it also means the allocation size is decided by the
+// stored value. An "m=4294967295" in a hash asks argon2.IDKey for roughly 4 TB
+// and takes the process down before anything gets to reject it, so the value is
+// checked BEFORE it is used, not trusted because of where it came from.
+//
+// No attacker-controlled path reaches this today: hashes are produced by
+// HashArgon2id and read back from the services' own stores. The bound is here so
+// that stays true if a hash ever arrives from somewhere else — an import, a
+// migration, a federated user record — rather than depending on it.
+//
+// 1 GiB is far above any legitimate hash (OWASP's recommendation is 19 MiB) and
+// far below a size that can hurt the process.
+const (
+	maxArgon2idMemory uint32 = 1 << 20 // KiB, i.e. 1 GiB
+	maxArgon2idTime   uint32 = 16
+)
+
 // HashArgon2id hashes password with the Argon2id algorithm using OWASP
 // recommended parameters (memory 19456 KiB, time 2, parallelism 1) and a
 // random 16-byte salt, returning a standard PHC-formatted string
@@ -42,8 +63,11 @@ func HashArgon2id(password string) string {
 // CompareArgon2id compares password with an Argon2id PHC-formatted hash,
 // return true if password matches the hash, otherwise false.
 // The cost parameters are read from the hash itself, so hashes created
-// with different parameters keep verifying after a parameter bump.
-// Malformed hashes return false (never panic)
+// with different parameters keep verifying after a parameter bump; they are
+// bounds-checked first, since they decide how much memory and time the
+// comparison costs.
+// Malformed hashes — including ones carrying out-of-range cost parameters —
+// return false (never panic)
 //
 // Example:
 //
@@ -64,7 +88,14 @@ func CompareArgon2id(password, hash string) bool {
 	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &time, &parallelism); err != nil {
 		return false
 	}
-	if time == 0 || parallelism == 0 {
+	// Reject the cost parameters before they reach argon2.IDKey: memory is the
+	// allocation size and time is the iteration count, so an out-of-range value
+	// is a resource-exhaustion request, not a wrong answer. A rejected hash is
+	// reported the same way as any other malformed hash — false, never a panic.
+	if time == 0 || time > maxArgon2idTime || parallelism == 0 {
+		return false
+	}
+	if memory == 0 || memory > maxArgon2idMemory {
 		return false
 	}
 

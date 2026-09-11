@@ -2,7 +2,9 @@ package db
 
 import (
 	"database/sql"
+	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -124,4 +126,121 @@ func TestOpenSQLiteLeavesDurationsUnset(t *testing.T) {
 	if got := poolDuration(t, database.DB, "maxLifetime"); got != 0 {
 		t.Errorf("sqlite ConnMaxLifetime = %v, want 0 (unset)", got)
 	}
+}
+
+// awkwardPassword contains every character that changes the MEANING of a URL:
+// "@" ends the userinfo, "/" starts the path, "?" starts the query and "#"
+// truncates at a fragment. A password is arbitrary user data, so all four are
+// legal in one — and under fmt.Sprintf all four escape their field.
+const awkwardPassword = "p/a?s#s@word"
+
+// TestPostgresDSNDefaultsToRequireSSL pins the fail-closed default. This library
+// cannot tell a loopback socket from a managed Postgres across the internet, so
+// an unset SSLMode must not silently choose cleartext.
+//
+// Mutation: put the default back to "disable" and this fails.
+func TestPostgresDSNDefaultsToRequireSSL(t *testing.T) {
+	dsn := postgresDSN(Config{
+		Host:   "db.example.com",
+		Port:   5432,
+		User:   "app",
+		DBName: "appdb",
+	})
+
+	parsed, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatalf("built an unparseable DSN %q: %v", dsn, err)
+	}
+	if got := parsed.Query().Get("sslmode"); got != "require" {
+		t.Fatalf("sslmode = %q, want %q — an unset SSLMode must not fall back to cleartext", got, "require")
+	}
+}
+
+// TestPostgresDSNHonoursExplicitSSLMode covers the other side of the default: a
+// caller that genuinely wants cleartext (a local dev Postgres) can still say so,
+// and saying so is now a decision on the record rather than an accident.
+func TestPostgresDSNHonoursExplicitSSLMode(t *testing.T) {
+	dsn := postgresDSN(Config{
+		Host:    "localhost",
+		Port:    5432,
+		User:    "app",
+		DBName:  "appdb",
+		SSLMode: "disable",
+	})
+
+	parsed, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatalf("built an unparseable DSN %q: %v", dsn, err)
+	}
+	if got := parsed.Query().Get("sslmode"); got != "disable" {
+		t.Fatalf("sslmode = %q, want %q", got, "disable")
+	}
+}
+
+// TestPostgresDSNEscapesCredentials is the regression guard for the injection:
+// a password carrying URL metacharacters must survive as DATA. Under the old
+// fmt.Sprintf the "@" alone redirected the connection to a different host, and
+// the "?" let the password append its own sslmode — a wrong password could
+// therefore downgrade the connection to cleartext or point it at an attacker's
+// server.
+//
+// Every field is checked, not just the password, because the failure mode is
+// that one field's contents get read as another field.
+//
+// Mutation: rebuild the DSN with fmt.Sprintf and this fails.
+func TestPostgresDSNEscapesCredentials(t *testing.T) {
+	dsn := postgresDSN(Config{
+		Host:     "db.example.com",
+		Port:     5432,
+		User:     "app@corp",
+		Password: awkwardPassword,
+		DBName:   "appdb",
+		SSLMode:  "verify-full",
+	})
+
+	parsed, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatalf("built an unparseable DSN %q: %v", dsn, err)
+	}
+
+	if parsed.Scheme != "postgres" {
+		t.Errorf("scheme = %q, want postgres", parsed.Scheme)
+	}
+	if parsed.Host != "db.example.com:5432" {
+		t.Errorf("host = %q, want db.example.com:5432 — the password escaped its field and moved the host", parsed.Host)
+	}
+	if got := parsed.User.Username(); got != "app@corp" {
+		t.Errorf("user = %q, want app@corp", got)
+	}
+	password, set := parsed.User.Password()
+	if !set || password != awkwardPassword {
+		t.Errorf("password = %q (set=%v), want %q", password, set, awkwardPassword)
+	}
+	if parsed.Path != "/appdb" {
+		t.Errorf("path = %q, want /appdb — the password's %q escaped into the path", parsed.Path, "/")
+	}
+	if got := parsed.Query().Get("sslmode"); got != "verify-full" {
+		t.Errorf("sslmode = %q, want verify-full — the password's %q overrode the caller's choice", got, "?")
+	}
+	// The password must not appear raw anywhere in the DSN: if it does, some
+	// part of it was never encoded and is still being read as syntax.
+	if strings.Contains(dsn, awkwardPassword) {
+		t.Errorf("the password appears unencoded in the DSN: %q", dsn)
+	}
+}
+
+// TestOpenPostgresPrefersExplicitDSN records why the sslmode default change
+// reaches no current consumer: every Postgres service passes a full
+// PostgresDSN, which wins over the discrete fields entirely.
+func TestOpenPostgresPrefersExplicitDSN(t *testing.T) {
+	database, err := Open(Config{
+		Driver:      DriverPostgres,
+		PostgresDSN: "postgres://user:pass@localhost:5432/testdb?sslmode=disable",
+		Host:        "ignored.example.com",
+		SSLMode:     "",
+	})
+	if err != nil {
+		t.Fatalf("Open postgres: %v", err)
+	}
+	defer database.Close()
 }
