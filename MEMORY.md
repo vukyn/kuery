@@ -33,6 +33,8 @@ subject wins and the note is the thing to fix.
 - [kuery excel+pdf report libs](memory/kuery-excel-pdf-report-libs.md) — kuery/excel + kuery/pdf (maroto v2 + Be Vietnam Pro)
 - [kuery Fiber v3 twins](memory/kuery-fiber-v3-twins.md) — v3-suffixed pkgs side-by-side; ⚠️ twins now DRIFT
 - [kuery security fixes 2026-07](memory/kuery-security-fixes-2026-07.md) — otel DoS + go1.26.5 ECH; MD5/G304/G101 by-design
+- [kuery security fixes 2026-09](memory/kuery-security-fixes-2026-09.md) — bun hook logged inlined SQL values; x/text pin forced to v0.41.0
+- [Postgres sslmode default = require](memory/postgres-sslmode-default-is-require.md) — empty SSLMode fails closed; no consumer affected
 
 ## General — platform habits and language traps that apply here
 
