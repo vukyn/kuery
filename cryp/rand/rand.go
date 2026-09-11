@@ -64,7 +64,22 @@ func RandMixedString(n int, hasNumber bool, hasSpecial bool) string {
 	for i := range n {
 		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
 		if err != nil {
-			return ""
+			// Unreachable. rand.Int only returns an error when its reader
+			// fails, and since Go 1.24 crypto/rand.Reader cannot fail — a
+			// failure of the OS entropy source terminates the program instead.
+			// Its other failure mode, max <= 0, is impossible here because the
+			// charset always contains at least the two letter sets.
+			//
+			// It panics rather than returning "" because callers use this to
+			// mint share tokens, API keys and slugs and none of them check a
+			// return value they were told is a string. A silent "" would issue
+			// an empty token — a credential that is wrong in the direction of
+			// letting someone in — where a panic stops the request. Same
+			// reasoning as ulid.MustNew and post-1.24 crypto/rand itself.
+			//
+			// The signature stays (string) deliberately: adding an error would
+			// break every consumer for a branch that cannot be taken.
+			panic("kuery/cryp/rand: crypto/rand failed: " + err.Error())
 		}
 		b[i] = charset[num.Int64()]
 	}

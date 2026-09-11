@@ -8,6 +8,9 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"net"
+	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -65,7 +68,7 @@ type Config struct {
 	User        string
 	Password    string
 	DBName      string
-	SSLMode     string
+	SSLMode     string // when empty, defaults to "require" — set "disable" explicitly for a non-TLS server
 	Port        int
 
 	// Pool limits, passed straight through to the *sql.DB. Each is three-state:
@@ -105,14 +108,7 @@ func Open(cfg Config) (*bun.DB, error) {
 	case DriverPostgres:
 		dsn := cfg.PostgresDSN
 		if dsn == "" {
-			sslMode := cfg.SSLMode
-			if sslMode == "" {
-				sslMode = "disable"
-			}
-			dsn = fmt.Sprintf(
-				"postgres://%s:%s@%s:%d/%s?sslmode=%s",
-				cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DBName, sslMode,
-			)
+			dsn = postgresDSN(cfg)
 		}
 		sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
 		applyPool(sqldb, cfg, DriverPostgres)
@@ -121,6 +117,53 @@ func Open(cfg Config) (*bun.DB, error) {
 	default:
 		return nil, fmt.Errorf("unknown database driver: %q", driver)
 	}
+}
+
+// defaultPostgresSSLMode is what an unset Config.SSLMode becomes.
+//
+// It is "require", not "disable". This library has no way to know whether the
+// host it is handed is a loopback socket or a managed Postgres across the
+// public internet, and a shared library that guesses wrong in the "disable"
+// direction sends credentials and row data in cleartext without anyone being
+// told. Guessing wrong in the "require" direction produces a connection error
+// at startup naming sslmode, which is a question the operator can answer.
+// Failing closed is the only default that cannot leak silently.
+//
+// This is a behaviour change for one caller shape only: a config that leaves
+// SSLMode empty AND leaves PostgresDSN empty, pointing at a server without TLS.
+// That caller must now set SSLMode: "disable" explicitly — which is the point,
+// since cleartext then becomes a decision on the record instead of a default.
+// It reaches no current consumer: every Postgres service passes SSLMode through
+// from its own config, where it already carries an explicit default.
+const defaultPostgresSSLMode = "require"
+
+// postgresDSN assembles a Postgres URL from the discrete Config fields.
+//
+// It is built with net/url rather than fmt.Sprintf because the password is
+// arbitrary user data being placed into URL syntax. A password containing "@"
+// moves where the host ends, "/" moves where the path begins, "?" starts the
+// query string and "#" truncates the URL at a fragment — so a sufficiently
+// unlucky (or chosen) password could point the connection at a different host
+// or replace the sslmode the caller asked for. url.UserPassword percent-encodes
+// the userinfo and url.Values encodes the query, so every one of those
+// characters survives as data.
+func postgresDSN(cfg Config) string {
+	sslMode := cfg.SSLMode
+	if sslMode == "" {
+		sslMode = defaultPostgresSSLMode
+	}
+
+	query := url.Values{}
+	query.Set("sslmode", sslMode)
+
+	dsn := url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(cfg.User, cfg.Password),
+		Host:     net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)),
+		Path:     "/" + cfg.DBName,
+		RawQuery: query.Encode(),
+	}
+	return dsn.String()
 }
 
 // applyPool sets the *sql.DB pool limits from cfg, filling in the driver's
