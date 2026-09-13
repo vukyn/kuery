@@ -9,3 +9,4 @@ here now, and new ones belong here.
 
 - [kuery consolidation](project_kuery_consolidation.md) — all repos consolidated on kuery, no local pkg/; medioa2+isme now v1.15.0; gotcha: GetUserId → GetUserID
 - [debug.ReadBuildInfo is empty under go test](go-buildinfo-empty-under-test.md) — ok=true but Deps empty and no vcs.*; version tests need a synthetic fixture or they pass on a no-op impl
+- [Rate limiter needs a proxy header](ratelimit-needs-proxy-header.md) — c.IP() behind fly-proxy is ONE global bucket; ship APP_PROXY_HEADER + EnableIPValidation with any limiter
