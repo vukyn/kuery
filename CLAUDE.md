@@ -39,7 +39,11 @@ make v-tag-latest             # newest tag only
 make tag VERSION=1.13.0       # creates annotated tag v1.13.0 AND pushes it
 ```
 
-**Tag retention rule: keep only the 5 newest version tags.** After tagging a release, delete older tags both locally (`git tag -d`) and on the remote (`git push origin --delete refs/tags/<tag>`). Old versions stay fetchable for consumers via the proxy.golang.org cache.
+**Tag retention rule: keep only the 5 newest version tags.** After tagging a release, delete older tags both locally (`git tag -d`) and on the remote (`git push origin --delete refs/tags/<tag>`).
+
+⚠️ **A pruned tag is unresolvable for good. This line claimed the opposite** ("old versions stay fetchable for consumers via the proxy.golang.org cache") **until 2026-09-13.** Verified false: `https://proxy.golang.org/github.com/vukyn/kuery/@v/v1.41.0.info` returns **404**, so a consumer still pinned to a pruned version fails `go mod tidy` with no way back. gobuild's `platform-service` preset pinned exactly that version and every project scaffolded from it failed on first build — silently, because nothing runs a generated project until a human does.
+
+Before deleting a tag, grep the platform for pins to it — `grep -rn 'kuery v1\.' */go.mod */templates` — and remember a pin inside a **template** is a consumer like any other, invisible to `go mod` tooling because it is not a real `go.mod`.
 
 After a release: `go get github.com/vukyn/kuery@v<new>` in each consuming service.
 
