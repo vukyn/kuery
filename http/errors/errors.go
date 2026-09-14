@@ -80,6 +80,17 @@ func TooManyRequests(message string) error {
 	}
 }
 
+// 503 — a dependency the endpoint needs is not configured or not reachable, and
+// the caller should retry later. Distinct from 500 so a deploy that is simply
+// missing an optional integration's secrets answers "not available here" rather
+// than claiming the server broke.
+func ServiceUnavailable(message string) error {
+	return &errorImpl{
+		message: message,
+		status:  http.StatusServiceUnavailable,
+	}
+}
+
 func (e *errorImpl) Error() string {
 	return e.message
 }
