@@ -34,9 +34,21 @@ func Err(c fiber.Ctx, err error) error {
 				Message: "internal server error",
 			})
 		default:
+			// The stable code travels with the message on every non-5xx
+			// response. A client branches on the code and translates it; the
+			// message stays prose for a developer, free to be reworded.
+			//
+			// ⚠️ Deliberately NOT set on the 5xx branch above: a code there
+			// would name the subsystem that failed, which is the internal
+			// detail that branch exists to withhold.
+			code := ""
+			if coded, ok := any(err).(pkgErr.Coded); ok {
+				code = coded.Code()
+			}
 			return c.Status(err.Status()).JSON(pkgBase.Response{
-				Code:    err.Status(),
-				Message: err.Error(),
+				Code:      err.Status(),
+				Message:   err.Error(),
+				ErrorCode: code,
 			})
 		}
 	default:

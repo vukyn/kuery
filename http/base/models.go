@@ -4,6 +4,20 @@ type Response struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 	Data    any    `json:"data,omitempty"`
+	// ErrorCode is a STABLE, machine-readable name for the failure, such as
+	// "PLACE_NOT_FOUND". Message is prose for a developer and may be reworded
+	// at any time; ErrorCode is the part a client is allowed to branch on —
+	// to pick a translated sentence, to decide whether to retry, or to focus
+	// the field at fault.
+	//
+	// ⚠️ omitempty is load-bearing. Every service already on this envelope
+	// keeps byte-identical JSON until it starts setting a code, so adopting
+	// this is per-endpoint and never a breaking change.
+	//
+	// It is deliberately absent from 5xx responses: the code would name the
+	// subsystem that failed, which is exactly the internal detail the generic
+	// 5xx body exists to withhold.
+	ErrorCode string `json:"error_code,omitempty"`
 }
 
 type Pagination struct {
