@@ -11,9 +11,43 @@ type Error interface {
 	Status() int
 }
 
+// Coded is an OPTIONAL companion to Error: an error that also carries a
+// stable, machine-readable name for the failure ("PLACE_NOT_FOUND").
+//
+// ⚠️ It is a separate interface on purpose rather than a third method on
+// Error. Error is exported and services may implement it themselves; adding a
+// method would break every one of them at compile time for a field most of
+// them do not set yet. Response writers type-assert for Coded and carry the
+// code when it is there.
+type Coded interface {
+	Code() string
+}
+
 type errorImpl struct {
 	message string
 	status  int
+	code    string
+}
+
+// WithCode attaches a stable error code to an error built by any constructor
+// in this package, leaving its status and message untouched:
+//
+//	func NewPlaceNotFoundError() error {
+//		return errors.WithCode(errors.NotFound("place not found"), "PLACE_NOT_FOUND")
+//	}
+//
+// The code is what a client branches on. The message is prose for a developer
+// and stays free to be reworded — which it is not, once a client has started
+// matching on it.
+//
+// An error that is not one of this package's returns unchanged, so a caller
+// can wrap unconditionally.
+func WithCode(err error, code string) error {
+	impl, ok := err.(*errorImpl)
+	if !ok || code == "" {
+		return err
+	}
+	return &errorImpl{message: impl.message, status: impl.status, code: code}
 }
 
 // 400
@@ -97,4 +131,9 @@ func (e *errorImpl) Error() string {
 
 func (e *errorImpl) Status() int {
 	return e.status
+}
+
+// Code returns the stable error name, or "" when none was attached.
+func (e *errorImpl) Code() string {
+	return e.code
 }
