@@ -2,6 +2,7 @@ package rand
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -100,4 +101,31 @@ func RandIpV4() string {
 		ip[i] = ip[i] % 255
 	}
 	return fmt.Sprintf("%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3])
+}
+
+// FromCharset returns n runes drawn uniformly from charset using crypto/rand.
+// Use it for human-facing codes where the alphabet matters, e.g. one with the
+// look-alike characters removed.
+//
+// Example:
+//
+//	FromCharset(6, "ABCDEFGHJKMNPQRSTUVWXYZ23456789") => "K7QW2M"
+func FromCharset(n int, charset string) (string, error) {
+	if n < 1 {
+		return "", errors.New("rand: length must be at least 1")
+	}
+	runes := []rune(charset)
+	if len(runes) == 0 {
+		return "", errors.New("rand: charset must not be empty")
+	}
+	limit := big.NewInt(int64(len(runes)))
+	out := make([]rune, n)
+	for i := range out {
+		index, err := rand.Int(rand.Reader, limit)
+		if err != nil {
+			return "", err
+		}
+		out[i] = runes[index.Int64()]
+	}
+	return string(out), nil
 }
