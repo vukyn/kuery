@@ -67,3 +67,55 @@ func TestRandMixedStringVaries(t2 *testing.T) {
 		t2.Fatalf("only %d distinct values out of 64 draws — the output is not random", len(seen))
 	}
 }
+
+func TestFromCharsetUsesOnlyTheCharset(t2 *testing.T) {
+	const charset = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+	for range 500 {
+		code, err := FromCharset(6, charset)
+		if err != nil {
+			t2.Fatalf("FromCharset: %v", err)
+		}
+		if len(code) != 6 {
+			t2.Fatalf("len = %d, want 6 (%q)", len(code), code)
+		}
+		for _, r := range code {
+			if !strings.ContainsRune(charset, r) {
+				t2.Fatalf("rune %q not in charset (%q)", r, code)
+			}
+		}
+	}
+}
+
+func TestFromCharsetVaries(t2 *testing.T) {
+	seen := map[string]bool{}
+	for range 200 {
+		code, err := FromCharset(8, "abcdefghijklmnopqrstuvwxyz")
+		if err != nil {
+			t2.Fatalf("FromCharset: %v", err)
+		}
+		seen[code] = true
+	}
+	// 26^8 outcomes: any repeat in 200 draws means the source is not random.
+	if len(seen) != 200 {
+		t2.Fatalf("got %d distinct codes out of 200", len(seen))
+	}
+}
+
+func TestFromCharsetSupportsMultibyteRunes(t2 *testing.T) {
+	code, err := FromCharset(4, "đăâ")
+	if err != nil {
+		t2.Fatalf("FromCharset: %v", err)
+	}
+	if got := len([]rune(code)); got != 4 {
+		t2.Fatalf("rune count = %d, want 4 (%q)", got, code)
+	}
+}
+
+func TestFromCharsetRejectsBadInput(t2 *testing.T) {
+	if _, err := FromCharset(0, "abc"); err == nil {
+		t2.Fatal("n = 0 must fail")
+	}
+	if _, err := FromCharset(4, ""); err == nil {
+		t2.Fatal("empty charset must fail")
+	}
+}
