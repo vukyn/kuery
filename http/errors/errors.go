@@ -23,10 +23,22 @@ type Coded interface {
 	Code() string
 }
 
+// Detailed is an OPTIONAL companion to Error: an error that also carries
+// structured, client-facing details (for example the conflicting resource).
+// Response writers type-assert for it and put a non-nil value into the
+// response's data field on non-5xx responses.
+//
+// Separate from Error for the same reason Coded is: adding a method to Error
+// would break every service that implements it.
+type Detailed interface {
+	Details() any
+}
+
 type errorImpl struct {
 	message string
 	status  int
 	code    string
+	details any
 }
 
 // WithCode attaches a stable error code to an error built by any constructor
@@ -47,7 +59,30 @@ func WithCode(err error, code string) error {
 	if !ok || code == "" {
 		return err
 	}
-	return &errorImpl{message: impl.message, status: impl.status, code: code}
+	return &errorImpl{message: impl.message, status: impl.status, code: code, details: impl.details}
+}
+
+// WithDetails attaches structured details to an error built by any constructor
+// in this package, leaving its status, message and code untouched. Details must
+// be JSON-serialisable and safe to show a client.
+//
+// An error that is not one of this package's, or nil details, returns the
+// error unchanged, so a caller can wrap unconditionally. Composes with
+// WithCode in either order.
+func WithDetails(err error, details any) error {
+	impl, ok := err.(*errorImpl)
+	if !ok || details == nil {
+		return err
+	}
+	return &errorImpl{message: impl.message, status: impl.status, code: impl.code, details: details}
+}
+
+// 409
+func Conflict(message string) error {
+	return &errorImpl{
+		message: message,
+		status:  http.StatusConflict,
+	}
 }
 
 // 400
@@ -136,4 +171,9 @@ func (e *errorImpl) Status() int {
 // Code returns the stable error name, or "" when none was attached.
 func (e *errorImpl) Code() string {
 	return e.code
+}
+
+// Details returns the attached details, or nil when none were attached.
+func (e *errorImpl) Details() any {
+	return e.details
 }

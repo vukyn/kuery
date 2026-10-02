@@ -72,3 +72,59 @@ func TestWithCodeIgnoresAnEmptyCode(t *testing.T) {
 		t.Fatal("an empty code must not allocate a new error")
 	}
 }
+
+type conflictDetails struct {
+	Reason string `json:"reason"`
+}
+
+func TestConflictIs409(t *testing.T) {
+	err, ok := Conflict("already exists").(Error)
+	if !ok || err.Status() != http.StatusConflict {
+		t.Fatalf("Conflict must be an Error with status 409, got %v", err)
+	}
+}
+
+func TestWithDetailsKeepsStatusMessageAndCode(t *testing.T) {
+	wrapped := WithDetails(WithCode(Conflict("taken"), "NAME_TAKEN"), conflictDetails{Reason: "dup"})
+
+	if wrapped.(Error).Status() != http.StatusConflict || wrapped.Error() != "taken" {
+		t.Errorf("status/message changed: %d %q", wrapped.(Error).Status(), wrapped.Error())
+	}
+	if wrapped.(Coded).Code() != "NAME_TAKEN" {
+		t.Errorf("code = %q", wrapped.(Coded).Code())
+	}
+	if wrapped.(Detailed).Details() != (conflictDetails{Reason: "dup"}) {
+		t.Errorf("details = %v", wrapped.(Detailed).Details())
+	}
+}
+
+func TestWithCodeKeepsDetails(t *testing.T) {
+	wrapped := WithCode(WithDetails(Conflict("taken"), conflictDetails{Reason: "dup"}), "NAME_TAKEN")
+
+	if wrapped.(Coded).Code() != "NAME_TAKEN" {
+		t.Errorf("code = %q", wrapped.(Coded).Code())
+	}
+	if wrapped.(Detailed).Details() != (conflictDetails{Reason: "dup"}) {
+		t.Errorf("details lost: %v", wrapped.(Detailed).Details())
+	}
+	if wrapped.(Error).Status() != http.StatusConflict {
+		t.Errorf("status = %d", wrapped.(Error).Status())
+	}
+}
+
+func TestPlainErrorHasNilDetails(t *testing.T) {
+	if NotFound("x").(Detailed).Details() != nil {
+		t.Fatal("an error without details must report nil")
+	}
+}
+
+func TestWithDetailsLeavesForeignAndNilAlone(t *testing.T) {
+	foreign := errors.New("not ours")
+	if WithDetails(foreign, 1) != foreign {
+		t.Fatal("foreign error must come back untouched")
+	}
+	original := NotFound("gone")
+	if WithDetails(original, nil) != original {
+		t.Fatal("nil details must not allocate a new error")
+	}
+}
