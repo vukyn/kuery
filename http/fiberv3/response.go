@@ -45,10 +45,16 @@ func Err(c fiber.Ctx, err error) error {
 			if coded, ok := any(err).(pkgErr.Coded); ok {
 				code = coded.Code()
 			}
+			// Structured details ride in the same data field OK uses.
+			var details any
+			if detailed, ok := any(err).(pkgErr.Detailed); ok {
+				details = detailed.Details()
+			}
 			return c.Status(err.Status()).JSON(pkgBase.Response{
 				Code:      err.Status(),
 				Message:   err.Error(),
 				ErrorCode: code,
+				Data:      details,
 			})
 		}
 	default:
