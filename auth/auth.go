@@ -63,6 +63,25 @@ func NewAuthMiddleware(publicKeyPEM string, appCode string) fiber.Handler {
 //     checker that wants a failure to reject the request must decide that itself
 //     and return (true, nil); returning (true, err) is read as "continue".
 func NewAuthMiddlewareWithRevocation(publicKeyPEM string, appCode string, checker RevocationChecker) fiber.Handler {
+	return newAuthMiddleware(publicKeyPEM, []string{appCode}, checker)
+}
+
+// NewAuthMiddlewareForApps is NewAuthMiddleware for a route several apps may
+// call: the token's audience must include ANY of appCodes, and the request
+// context gets the permissions granted for the first entry of appCodes found in
+// the audience (never a merge across apps).
+//
+// An empty appCodes accepts nothing: every request with a valid token is 403,
+// so a misconfigured list fails closed.
+//
+// Responses are those of NewAuthMiddleware; there is no revocation check.
+func NewAuthMiddlewareForApps(publicKeyPEM string, appCodes []string) fiber.Handler {
+	return newAuthMiddleware(publicKeyPEM, appCodes, nil)
+}
+
+// newAuthMiddleware is the one body behind every constructor above, so the
+// single-app and multi-app paths cannot drift apart.
+func newAuthMiddleware(publicKeyPEM string, appCodes []string, checker RevocationChecker) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		token, ok := bearerToken(c)
 		if !ok {
@@ -74,9 +93,14 @@ func NewAuthMiddlewareWithRevocation(publicKeyPEM string, appCode string, checke
 			return pkgHttp.Unauthorized(c)
 		}
 
-		if !slices.Contains(claims.GetAudience(), appCode) {
+		audience := claims.GetAudience()
+		appCodeIndex := slices.IndexFunc(appCodes, func(code string) bool {
+			return slices.Contains(audience, code)
+		})
+		if appCodeIndex < 0 {
 			return pkgHttp.Forbidden(c)
 		}
+		appCode := appCodes[appCodeIndex]
 
 		sessionID := claims.GetSessionID()
 
