@@ -40,7 +40,7 @@ func countRows(t *testing.T, db *bun.DB, table string) int {
 	if err != nil {
 		t.Fatalf("count %s: %v", table, err)
 	}
-	return count
+	return int(count)
 }
 
 // makeMigrations builds a set of migrations that create and drop simple tables,

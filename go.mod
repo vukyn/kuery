@@ -1,6 +1,6 @@
 module github.com/vukyn/kuery
 
-go 1.27.1
+go 1.27.4
 
 require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
@@ -22,11 +22,11 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/zerolog v1.34.0
 	github.com/sarulabs/di/v2 v2.5.2
-	github.com/uptrace/bun v1.2.16
-	github.com/uptrace/bun/dialect/pgdialect v1.2.16
-	github.com/uptrace/bun/dialect/sqlitedialect v1.2.16
-	github.com/uptrace/bun/driver/pgdriver v1.2.16
-	github.com/uptrace/bun/driver/sqliteshim v1.2.16
+	github.com/uptrace/bun v1.3.0
+	github.com/uptrace/bun/dialect/pgdialect v1.3.0
+	github.com/uptrace/bun/dialect/sqlitedialect v1.3.0
+	github.com/uptrace/bun/driver/pgdriver v1.3.0
+	github.com/uptrace/bun/driver/sqliteshim v1.3.0
 	github.com/xuri/excelize/v2 v2.11.0
 	golang.org/x/crypto v0.56.0
 	golang.org/x/sys v0.47.0
