@@ -26,11 +26,11 @@ func SelectWithPagination(query *bun.SelectQuery, paging pkgBase.Pagination, def
 	}
 
 	if paging.GetLimit() > 0 {
-		query = query.Limit(paging.GetLimit())
+		query = query.Limit(int64(paging.GetLimit()))
 	}
 
 	if paging.GetOffset() > 0 {
-		query = query.Offset(paging.GetOffset())
+		query = query.Offset(int64(paging.GetOffset()))
 	}
 	return query
 }
